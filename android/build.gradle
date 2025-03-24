@@ -1,8 +1,8 @@
-group = "com.example.location_tracker"
+group = "com.harmonyloop.location_tracker"
 version = "1.0-SNAPSHOT"
 
 buildscript {
-    ext.kotlin_version = "1.8.22"
+    ext.kotlin_version = "1.9.24"
     repositories {
         google()
         mavenCentral()
@@ -25,7 +25,7 @@ apply plugin: "com.android.library"
 apply plugin: "kotlin-android"
 
 android {
-    namespace = "com.example.location_tracker"
+    namespace = "com.harmonyloop.location_tracker"
 
     compileSdk = 35
 
@@ -45,9 +45,14 @@ android {
 
     defaultConfig {
         minSdk = 21
+        targetSdk = 35
+        versionCode = 1
+        versionName = "1.0"
     }
 
+
     dependencies {
+        implementation ("com.google.android.gms:play-services-location:21.3.0")
         testImplementation("org.jetbrains.kotlin:kotlin-test")
         testImplementation("org.mockito:mockito-core:5.0.0")
     }
@@ -63,4 +68,8 @@ android {
             }
         }
     }
+}
+
+flutter {
+    source "../.."
 }
