@@ -1,5 +1,5 @@
 name: location_tracker
-description: "A new Flutter plugin project."
+description: "Simple location tracking plugin"
 version: 0.0.1
 homepage:
 
@@ -23,3 +23,5 @@ flutter:
       android:
         package: com.harmonyloop.location_tracker
         pluginClass: LocationTrackerPlugin
+
+license: MIT
