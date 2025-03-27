@@ -1,32 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.harmonyloop.location_tracker">
 
-    <!-- Required permissions -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-
-    <!-- For Android 14+ (API 34), if targeting that version -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <application
-        android:label="location_tracker"
-        android:icon="@mipmap/ic_launcher">
-
-        <!-- Main Activity -->
-        <activity
-            android:name="com.harmonyloop.location_tracker.MainActivity"
-            android:exported="true"
-            android:launchMode="singleTop"
-            android:theme="@style/LaunchTheme"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
-            android:hardwareAccelerated="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <!-- Location Service -->
+        android:label="location_tracker">
+        
         <service
             android:name="com.harmonyloop.location_tracker.LocationService"
             android:enabled="true"
