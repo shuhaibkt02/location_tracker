@@ -1,23 +1,25 @@
-# 📍 Location Tracker
+### **📍 Location Tracker**  
 
-A **Flutter plugin** for real-time location tracking with distance calculation. This plugin supports **Android-only** and provides **background location tracking** with easy-to-use APIs.
+A **Flutter plugin** for real-time location tracking with distance calculation. This plugin supports **Android-only** and provides **background location tracking** with easy-to-use APIs.  
 
 ---
 
-# 🚀 Features
+## **🚀 Features**  
 
 ✅ Real-time location updates  
 ✅ Start/Stop background tracking  
 ✅ Retrieve last known location  
 ✅ Calculate total distance traveled  
-✅ Lightweight and efficient  
+✅ Runs as a **foreground service (Android 10+)**  
+✅ Optimized for **Android 14 compliance**  
 
 ---
 
-# 📦 Step-by-Step Installation Guide
+## **📦 Step-by-Step Installation Guide**  
 
-### **Step 1: Add Dependency**
-Add the `location_tracker` plugin to your project by modifying `pubspec.yaml`:
+### **Step 1: Add Dependency**  
+
+Add the `location_tracker` plugin to your project by modifying `pubspec.yaml`:  
 
 ```yaml
 dependencies:
@@ -26,194 +28,214 @@ dependencies:
   location_tracker:
     path: ../  # Update this path based on your project structure
 ```
+OR
 
-Then, run the following command to fetch dependencies:
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  location_tracker:
+    git:
+      url: https://github.com/shuhaibkt02/location_tracker.git
+```
+
+
+Then, run the following command to fetch dependencies:  
 
 ```sh
 flutter pub get
-```
+```  
 
 ---
 
-# 🛠️ Step-by-Step Implementation Guide
+## **🔑 Android Setup**  
 
-### **Step 2: Import the Plugin**
-Open your **Dart file** (e.g., `main.dart`) and import the plugin:
+### **Step 2: Update AndroidManifest.xml**  
 
-```dart
-import 'package:location_tracker/location_tracker.dart';
-```
-
----
-
-### **Step 3: Request Permissions**
-For the plugin to work properly, **location permissions** must be enabled.
-
-#### **Android Permissions**
-Modify `android/app/src/main/AndroidManifest.xml` and add these lines inside the `<manifest>` tag:
+Modify `android/app/src/main/AndroidManifest.xml` and add these permissions inside the `<manifest>` tag:  
 
 ```xml
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
 <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-```
+<uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+<uses-permission android:name="android.permission.INTERNET"/>
+```  
 
-Then, inside `<application>` tag, enable **background location tracking**:
+Inside the `<application>` tag, enable **background location tracking** with a foreground service:  
 
 ```xml
 <service
     android:name=".LocationService"
     android:enabled="true"
-    android:foregroundServiceType="location" />
-```
+    android:foregroundServiceType="location"
+    android:exported="false"/>
+```  
+
+For **Android 14 compliance**, a **persistent notification** must be displayed when tracking location in the background.  
 
 ---
 
-### **Step 4: Initialize the Plugin**
-Create an instance of `LocationTracker` in your Flutter app:
+## **🛠️ Kotlin and Gradle Configuration**  
+
+### **Step 3: Update Kotlin Version**  
+
+Ensure your `android/gradle.properties` contains:  
+
+```properties
+kotlin.gradle.plugin.version=1.9.22
+```  
+
+### **Step 4: Update compileSdk & targetSdk**  
+
+Modify `android/app/build.gradle`:  
+
+```gradle
+android {
+    compileSdkVersion 34
+
+    defaultConfig {
+        minSdkVersion 21
+        targetSdkVersion 34
+    }
+}
+```  
+
+---
+
+## **🔧 Battery Optimization (Android 12+)**  
+
+If tracking **stops unexpectedly**, Android may be killing your background service.  
+
+To **ignore battery optimizations**, ask users to **manually allow location tracking** in settings.  
+
+```dart
+import 'package:android_intent_plus/android_intent.dart';
+import 'package:android_intent_plus/flag.dart';
+
+Future<void> openBatteryOptimizationSettings() async {
+  final intent = AndroidIntent(
+    action: 'android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS',
+    package: 'your.package.name',
+  );
+  await intent.launch();
+}
+```  
+
+---
+
+## **🛠️ Initialize & Use the Plugin**  
+
+### **Step 5: Initialize the Plugin**  
+
+Create an instance of `LocationTracker` in your Flutter app:  
 
 ```dart
 final _locationTracker = LocationTracker.instance;
-```
+```  
 
----
-
-### **Step 5: Start Location Tracking**
-Call `startTracking()` to begin tracking in the background:
+### **Step 6: Start Location Tracking**  
 
 ```dart
 await _locationTracker.startTracking();
-```
+```  
 
----
-
-### **Step 6: Stop Location Tracking**
-If you want to stop tracking, call:
+### **Step 7: Stop Location Tracking**  
 
 ```dart
 await _locationTracker.stopTracking();
-```
+```  
 
----
-
-### **Step 7: Get Current Location Data**
-Retrieve the current **latitude** and **longitude**:
+### **Step 8: Get Current Location Data**  
 
 ```dart
 Map<String, dynamic>? location = await _locationTracker.getLocationData();
 print("Current Location: $location");
-```
+```  
 
----
-
-### **Step 8: Get Total Distance Traveled**
-To check how far the user has moved:
+### **Step 9: Get Total Distance Traveled**  
 
 ```dart
 double? distance = await _locationTracker.getTotalDistance();
 print("Total Distance: $distance meters");
-```
+```  
 
 ---
 
-# 📌 Complete Example Code
-Here’s a **fully working Flutter example** that integrates the plugin:
+## **📌 Complete Example Code**  
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:location_tracker/location_tracker.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
+  MyAppState createState() => MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
-  final _locationTracker = LocationTracker.instance;
-  String _location = 'Unknown';
-  double _distance = 0.0;
-
-  @override
-  void initState() {
-    super.initState();
-    
-  }
-
+class MyAppState extends State<MyApp> {
+  double _totalDistance = 0.0;
+  final List<Map<String, dynamic>> _locationList = [];
 
   Future<void> _startTracking() async {
-    await _locationTracker.startTracking();
-    setState(() {});
+    await LocationTracker.startTracking();
   }
 
   Future<void> _stopTracking() async {
-    await _locationTracker.stopTracking();
-    setState(() {});
+    await LocationTracker.stopTracking();
   }
 
-  Future<void> _getLocation() async {
-    Map<String, dynamic>? loc = await _locationTracker.getLocationData();
-    setState(() => _location = loc.toString());
+  Future<void> _getTotalDistance() async {
+    final distance = await LocationTracker.getTotalDistance();
+    setState(() {
+      _totalDistance = distance;
+    });
   }
 
-  Future<void> _getDistance() async {
-    double? dist = await _locationTracker.getTotalDistance();
-    setState(() => _distance = dist ?? 0.0);
+  Future<void> _getLocationData() async {
+    final location = await LocationTracker.getLocationData();
+
+    print(location);
+
+    if (location != null) {
+      setState(() {
+        _locationList.add(location);
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
-        appBar: AppBar(title: const Text('Location Tracker Example')),
+        appBar: AppBar(title: Text('Location Tracker Test')),
         body: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('Current Location: $_location'),
-            Text('Total Distance: $_distance meters'),
-            ElevatedButton(
-              onPressed: _startTracking,
-              child: const Text('Start Tracking'),
-            ),
-            ElevatedButton(
-              onPressed: _stopTracking,
-              child: const Text('Stop Tracking'),
-            ),
-            ElevatedButton(
-              onPressed: _getLocation,
-              child: const Text('Get Location'),
-            ),
-            ElevatedButton(
-              onPressed: _getDistance,
-              child: const Text('Get Distance'),
-            ),
+            ElevatedButton(onPressed: _startTracking, child: Text("Start")),
+            ElevatedButton(onPressed: _stopTracking, child: Text("Stop")),
+            Text("Total Distance: $_totalDistance meters"),
+            ElevatedButton(onPressed: _getTotalDistance, child: Text("Get Distance")),
+            ElevatedButton(onPressed: _getLocationData, child: Text("Get Location")),
           ],
         ),
       ),
     );
   }
 }
-```
+```  
 
 ---
 
-# 📌 Notes
-- This plugin **only supports Android**.
-- Ensure you have **enabled location permissions** in your app settings.
-- The app must be **running in the foreground or background** for tracking to work.
+## **💼 License**  
 
----
+This project is licensed under the **MIT License**.  
 
-# 🎯 Contributing
-Feel free to **open an issue** or **submit a pull request** if you find a bug or want to improve the plugin.
-
----
-
-# 📄 License
-This project is licensed under the **MIT License**.
+Let me know if you need **further refinements!** 🚀
 
