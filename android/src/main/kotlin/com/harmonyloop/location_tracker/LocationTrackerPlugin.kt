@@ -11,8 +11,7 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.PluginRegistry
 
-class LocationTrackerPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler, PluginRegistry.RequestPermissionsResultListener {
-
+class LocationTrackerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, PluginRegistry.RequestPermissionsResultListener {
     private lateinit var channel: MethodChannel
     private var activity: Activity? = null
     private var locationService: LocationService? = null
@@ -148,28 +147,14 @@ class LocationTrackerPlugin : FlutterPlugin, ActivityAware, MethodChannel.Method
         }
     }
 
-override fun onAttachedToActivity(binding: ActivityPluginBinding) {
-    this.activity = binding.activity
-    bindToService()
-}
-
-override fun onDetachedFromActivityForConfigChanges() {
-    activity = null
-}
-
-override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
-    this.activity = binding.activity
-}
-
-override fun onDetachedFromActivity() {
-    if (isBound) {
-        activity?.unbindService(connection)
-        isBound = false
-        Log.d(TAG, "Unbound from service")
+    override fun onDetachedFromActivity() {
+        if (isBound) {
+            activity?.unbindService(connection)
+            isBound = false
+            Log.d(TAG, "Unbound from service")
+        }
+        activity = null
     }
-    activity = null
-}
-
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray): Boolean {
         if (requestCode == REQUEST_LOCATION_PERMISSION) {
