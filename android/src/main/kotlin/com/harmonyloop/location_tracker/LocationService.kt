@@ -118,19 +118,24 @@ class LocationService : Service() {
     }
 
     private fun checkAndResetDailyDistance() {
-        val prefs = getSharedPreferences("LocationPrefs", MODE_PRIVATE)
-        val lastReset = prefs.getLong("last_reset", 0L)
-        val today = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-        }.timeInMillis
-        if (lastReset < today) {
-            totalDistanceKm = 0.0
-            prefs.edit().putLong("last_reset", System.currentTimeMillis()).apply()
-            Log.d(TAG, "Daily distance reset")
-        }
+    val prefs = getSharedPreferences("LocationPrefs", MODE_PRIVATE)
+    val lastReset = prefs.getLong("last_reset", 0L)
+    
+    // India-specific reset (00:00 IST)
+    val istCalendar = Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata")).apply {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
     }
+    val todayIST = istCalendar.timeInMillis
+
+    if (lastReset < todayIST) {
+        totalDistanceMeters = 0L
+        prefs.edit().putLong("last_reset", todayIST).apply()
+        Log.d(TAG, "Reset at IST: ${istCalendar.time}")
+    }
+}
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
