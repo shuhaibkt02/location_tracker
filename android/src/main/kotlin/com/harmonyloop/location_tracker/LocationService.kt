@@ -87,9 +87,9 @@ class LocationService : Service() {
             stopSelf()
             return
         }
-        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10 * 1000)
-            .setMinUpdateIntervalMillis(3 * 1000)
-            .setMinUpdateDistanceMeters(1f)
+        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 30 * 1000)
+            .setMinUpdateIntervalMillis(15 * 1000)
+            .setMinUpdateDistanceMeters(5f)
             .build()
 
         Log.d(TAG, "Requesting location updates")
