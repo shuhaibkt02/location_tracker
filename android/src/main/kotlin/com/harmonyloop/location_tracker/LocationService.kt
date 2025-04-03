@@ -100,22 +100,31 @@ class LocationService : Service() {
         )
     }
 
-    private fun updateDistanceAndNotification(locationResult: LocationResult) {
-        val currentLocation = locationResult.lastLocation ?: return
-        checkAndResetDailyDistance()
-        if (previousLocation != null) {
-            val distanceMeters = previousLocation!!.distanceTo(currentLocation)
-            val distanceKm = distanceMeters / 1000.0
-            totalDistanceKm += distanceKm
-            Log.d(TAG, "Distance updated: $totalDistanceKm KM")
-        } else {
-            Log.d(TAG, "First location received, no distance yet")
-        }
-        previousLocation = currentLocation
-        if (isTracking) {
-            updateNotification()
-        }
+private fun updateDistanceAndNotification(locationResult: LocationResult) {
+    val currentLocation = locationResult.lastLocation ?: return
+    checkAndResetDailyDistance()
+
+    // Ignore small GPS drifts using speed threshold
+    if (currentLocation.speed < 0.5f) { // 0.5 m/s = 1.8 km/h
+        Log.d(TAG, "Ignored update due to low speed: ${currentLocation.speed} m/s")
+        return
     }
+
+    if (previousLocation != null) {
+        val distanceMeters = previousLocation!!.distanceTo(currentLocation)
+        val distanceKm = distanceMeters / 1000.0
+        totalDistanceKm += distanceKm
+        Log.d(TAG, "Distance updated: $totalDistanceKm KM")
+    } else {
+        Log.d(TAG, "First location received, no distance yet")
+    }
+
+    previousLocation = currentLocation
+    if (isTracking) {
+        updateNotification()
+    }
+}
+
 
     private fun checkAndResetDailyDistance() {
     val prefs = getSharedPreferences("LocationPrefs", MODE_PRIVATE)
