@@ -87,9 +87,9 @@ class LocationService : Service() {
             stopSelf()
             return
         }
-        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 30 * 1000)
-            .setMinUpdateIntervalMillis(15 * 1000)
-            .setMinUpdateDistanceMeters(5f)
+        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 60 * 1000)
+            .setMinUpdateIntervalMillis(30 * 1000)
+            .setMinUpdateDistanceMeters(10f)
             .build()
 
         Log.d(TAG, "Requesting location updates")
@@ -131,7 +131,7 @@ class LocationService : Service() {
     val todayIST = istCalendar.timeInMillis
 
     if (lastReset < todayIST) {
-        totalDistanceMeters = 0L
+        totalDistanceKm = 0.0
         prefs.edit().putLong("last_reset", todayIST).apply()
         Log.d(TAG, "Reset at IST: ${istCalendar.time}")
     }
@@ -142,7 +142,7 @@ class LocationService : Service() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Location Tracking",
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
