@@ -61,7 +61,8 @@ class LocationService : Service() {
     fun startTracking() {
         if (!isTracking) {
             Log.d(TAG, "startTracking called, starting foreground service")
-            startForeground(NOTIFICATION_ID, createNotification())
+            val notification = createNotification()
+            startForeground(NOTIFICATION_ID, notification)
             startLocationUpdates()
             isTracking = true
         } else {
