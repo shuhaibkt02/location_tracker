@@ -63,18 +63,6 @@ Modify `android/app/src/main/AndroidManifest.xml` and add these permissions insi
 <uses-permission android:name="android.permission.INTERNET"/>
 ```  
 
-Inside the `<application>` tag, enable **background location tracking** with a foreground service:  
-
-```xml
-<service
-    android:name=".LocationService"
-    android:enabled="true"
-    android:foregroundServiceType="location"
-    android:exported="false"/>
-```  
-
-For **Android 14 compliance**, a **persistent notification** must be displayed when tracking location in the background.  
-
 ---
 
 ## **🛠️ Kotlin and Gradle Configuration**  
@@ -100,29 +88,7 @@ android {
         targetSdkVersion 34
     }
 }
-```  
-
----
-
-## **🔧 Battery Optimization (Android 12+)**  
-
-If tracking **stops unexpectedly**, Android may be killing your background service.  
-
-To **ignore battery optimizations**, ask users to **manually allow location tracking** in settings.  
-
-```dart
-import 'package:android_intent_plus/android_intent.dart';
-import 'package:android_intent_plus/flag.dart';
-
-Future<void> openBatteryOptimizationSettings() async {
-  final intent = AndroidIntent(
-    action: 'android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS',
-    package: 'your.package.name',
-  );
-  await intent.launch();
-}
-```  
-
+```
 ---
 
 ## **🛠️ Initialize & Use the Plugin**  
