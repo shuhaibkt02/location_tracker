@@ -14,9 +14,8 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.*
-
 import java.util.Calendar
-import java.util.TimeZone 
+import java.util.TimeZone
 
 class LocationService : Service() {
 
@@ -84,11 +83,13 @@ class LocationService : Service() {
     private fun startLocationUpdates() {
         if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
             (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
-             checkSelfPermission(android.Manifest.permission.FOREGROUND_SERVICE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
+             checkSelfPermission(android.Manifest.permission.FOREGROUND_SERVICE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+        ) {
             Log.e(TAG, "Missing required permissions, stopping service")
             stopSelf()
             return
         }
+
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 60 * 1000)
             .setMinUpdateIntervalMillis(30 * 1000)
             .setMinUpdateDistanceMeters(10f)
@@ -102,51 +103,48 @@ class LocationService : Service() {
         )
     }
 
-private fun updateDistanceAndNotification(locationResult: LocationResult) {
-    val currentLocation = locationResult.lastLocation ?: return
-    checkAndResetDailyDistance()
+    private fun updateDistanceAndNotification(locationResult: LocationResult) {
+        val currentLocation = locationResult.lastLocation ?: return
+        checkAndResetDailyDistance()
 
-    // Ignore small GPS drifts using speed threshold
-    if (currentLocation.speed < 0.5f) { // 0.5 m/s = 1.8 km/h
-        Log.d(TAG, "Ignored update due to low speed: ${currentLocation.speed} m/s")
-        return
+        // Ignore small GPS drifts using speed threshold
+        if (currentLocation.speed < 0.5f) {
+            Log.d(TAG, "Ignored update due to low speed: ${currentLocation.speed} m/s")
+            return
+        }
+
+        if (previousLocation != null) {
+            val distanceMeters = previousLocation!!.distanceTo(currentLocation)
+            val distanceKm = distanceMeters / 1000.0
+            totalDistanceKm += distanceKm
+            Log.d(TAG, "Distance updated: $totalDistanceKm KM")
+        } else {
+            Log.d(TAG, "First location received, no distance yet")
+        }
+
+        previousLocation = currentLocation
+        if (isTracking) updateNotification()
     }
-
-    if (previousLocation != null) {
-        val distanceMeters = previousLocation!!.distanceTo(currentLocation)
-        val distanceKm = distanceMeters / 1000.0
-        totalDistanceKm += distanceKm
-        Log.d(TAG, "Distance updated: $totalDistanceKm KM")
-    } else {
-        Log.d(TAG, "First location received, no distance yet")
-    }
-
-    previousLocation = currentLocation
-    if (isTracking) {
-        updateNotification()
-    }
-}
-
 
     private fun checkAndResetDailyDistance() {
-    val prefs = getSharedPreferences("LocationPrefs", MODE_PRIVATE)
-    val lastReset = prefs.getLong("last_reset", 0L)
-    
-    // India-specific reset (00:00 IST)
-    val istCalendar = Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata")).apply {
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }
-    val todayIST = istCalendar.timeInMillis
+        val prefs = getSharedPreferences("LocationPrefs", MODE_PRIVATE)
+        val lastReset = prefs.getLong("last_reset", 0L)
 
-    if (lastReset < todayIST) {
-        totalDistanceKm = 0.0
-        prefs.edit().putLong("last_reset", todayIST).apply()
-        Log.d(TAG, "Reset at IST: ${istCalendar.time}")
+        // India-specific reset (00:00 IST)
+        val istCalendar = Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata")).apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val todayIST = istCalendar.timeInMillis
+
+        if (lastReset < todayIST) {
+            totalDistanceKm = 0.0
+            prefs.edit().putLong("last_reset", todayIST).apply()
+            Log.d(TAG, "Reset at IST: ${istCalendar.time}")
+        }
     }
-}
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -167,8 +165,12 @@ private fun updateDistanceAndNotification(locationResult: LocationResult) {
 
     private fun updateNotification() {
         val notification = buildNotification()
-        val notificationManager = getSystemService(NotificationManager::class.java)
-        notificationManager.notify(NOTIFICATION_ID, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager.notify(NOTIFICATION_ID, notification)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
         Log.d(TAG, "Notification updated with distance: $totalDistanceKm KM")
     }
 
@@ -178,7 +180,10 @@ private fun updateDistanceAndNotification(locationResult: LocationResult) {
             .setContentTitle("Tracking Location")
             .setContentText("Salesman tracking is active | Distance: $distanceText")
             .setSmallIcon(android.R.drawable.ic_dialog_map)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setOngoing(true)
+            .setAutoCancel(false)
             .build()
     }
 
@@ -194,10 +199,7 @@ private fun updateDistanceAndNotification(locationResult: LocationResult) {
         return binder
     }
 
-    fun getLastLocation(): Location? {
-    return lastLocation?.lastLocation
-    }
-
+    fun getLastLocation(): Location? = lastLocation?.lastLocation
 
     fun getTotalDistanceKm(): Double = totalDistanceKm
 
