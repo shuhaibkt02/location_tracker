@@ -90,9 +90,9 @@ class LocationService : Service() {
             return
         }
 
-        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 60 * 1000)
-            .setMinUpdateIntervalMillis(30 * 1000)
-            .setMinUpdateDistanceMeters(10f)
+        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 20 * 1000)
+            .setMinUpdateIntervalMillis(10 * 1000)
+            .setMinUpdateDistanceMeters(5f)
             .build()
 
         Log.d(TAG, "Requesting location updates")
@@ -104,11 +104,19 @@ class LocationService : Service() {
     }
 
     private fun updateDistanceAndNotification(locationResult: LocationResult) {
-        val currentLocation = locationResult.lastLocation ?: return
+        val currentLocation = locationResult.lastLocation ?: run {
+            Log.w(TAG, "Location is null. Will try again shortly.")
+            return
+        }
+
         checkAndResetDailyDistance()
 
-        // Ignore small GPS drifts using speed threshold
-        if (currentLocation.speed < 0.5f) {
+        if (currentLocation.accuracy > 20f) {
+            Log.d(TAG, "Ignored update due to poor accuracy: ${currentLocation.accuracy} meters")
+            return
+        }
+
+        if (currentLocation.hasSpeed() && currentLocation.speed < 0.1f) {
             Log.d(TAG, "Ignored update due to low speed: ${currentLocation.speed} m/s")
             return
         }
