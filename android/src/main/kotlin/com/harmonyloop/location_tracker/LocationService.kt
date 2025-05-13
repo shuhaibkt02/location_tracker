@@ -14,10 +14,9 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.*
-import java.util.Calendar
-import java.util.TimeZone
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.Executors
+
 class LocationService : Service() {
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -87,50 +86,52 @@ class LocationService : Service() {
             Looper.getMainLooper()
         )
     }
+
     private fun updateDistanceAndNotification(locationResult: LocationResult) {
-    val currentLocation = locationResult.lastLocation ?: return
+        val currentLocation = locationResult.lastLocation ?: return
 
+        if (currentLocation.accuracy > 20) {
+            Log.w(TAG, "Ignoring location due to poor accuracy: ${currentLocation.accuracy} meters")
+            return
+        }
 
-    Log.d(TAG, "Location update received: $currentLocation")
+        if (previousLocation == null) {
+            previousLocation = currentLocation
+            Log.d(TAG, "Initialized previousLocation: $previousLocation")
+            return
+        }
 
+        val distanceMeters = previousLocation!!.distanceTo(currentLocation)
 
-    if (currentLocation.accuracy > 20) {
-        Log.w(TAG, "Ignoring location due to poor accuracy: ${currentLocation.accuracy} meters")
-        return
-    }
+        if (distanceMeters > 500) {
+            Log.w(TAG, "Ignoring large distance: $distanceMeters meters")
+            previousLocation = currentLocation
+            return
+        }
 
+        Log.d(TAG, "Raw Distance: $distanceMeters meters")
 
-    if (previousLocation == null) {
+        if (distanceMeters > 5) {
+            val distanceKm = distanceMeters / 1000.0
+            totalDistanceKm.getAndUpdate { it + distanceKm }
+            Log.d(TAG, "Accumulated Distance: ${totalDistanceKm.get()} km")
+        }
+
         previousLocation = currentLocation
-        Log.d(TAG, "Initialized previousLocation: $previousLocation")
-        return
+        updateNotification()
     }
-
-    val distanceMeters = previousLocation!!.distanceTo(currentLocation)
-
-
-    if (distanceMeters > 500) {
-        Log.w(TAG, "Ignoring large distance: $distanceMeters meters")
-        previousLocation = currentLocation
-        return
-    }
-
-    Log.d(TAG, "Raw Distance: $distanceMeters meters")
-
-    if (distanceMeters > 5) {
-        val distanceKm = distanceMeters / 1000.0
-        totalDistanceKm.getAndUpdate { it + distanceKm }
-        Log.d(TAG, "Accumulated Distance: ${totalDistanceKm.get()} km")
-    }
-
-    previousLocation = currentLocation
-}
-
 
     private fun updateNotification() {
         val distanceText = String.format("%.2f KM", totalDistanceKm.get())
-        val notification = createNotification()
         val notificationManager = getSystemService(NotificationManager::class.java)
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Ozone Tracking")
+            .setContentText("Distance covered: $distanceText")
+            .setSmallIcon(android.R.drawable.ic_dialog_map)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+
         notificationManager?.notify(NOTIFICATION_ID, notification)
     }
 
