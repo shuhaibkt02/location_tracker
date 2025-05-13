@@ -18,7 +18,6 @@ import java.util.Calendar
 import java.util.TimeZone
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.Executors
-
 class LocationService : Service() {
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -27,6 +26,8 @@ class LocationService : Service() {
     private val totalDistanceKm = AtomicReference<Double>(0.0)
     private var isTracking = false
     private val executor = Executors.newSingleThreadExecutor()
+
+    private val kalmanFilter = KalmanFilter()
 
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(locationResult: LocationResult) {
@@ -51,8 +52,6 @@ class LocationService : Service() {
     override fun onCreate() {
         super.onCreate()
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        loadDistance()
-        loadTrackingState()
         createNotificationChannel()
         Log.d(TAG, "Service created, waiting for startTracking")
     }
@@ -68,138 +67,71 @@ class LocationService : Service() {
             return false
         }
         if (!isTracking) {
-            Log.d(TAG, "startTracking called, starting foreground service")
             val notification = createNotification()
             startForeground(NOTIFICATION_ID, notification)
             startLocationUpdates()
             isTracking = true
-            saveTrackingState()
-        } else {
-            Log.d(TAG, "startTracking called, already tracking, updating notification")
-            updateNotification()
         }
         return true
     }
 
-    fun stopTracking() {
-        Log.d(TAG, "stopTracking called")
-        if (isTracking) {
-            stopForeground(true)
-            fusedLocationClient.removeLocationUpdates(locationCallback)
-            isTracking = false
-            saveTrackingState()
-        }
-        stopSelf()
-    }
-
-    private fun loadTrackingState() {
-        val prefs = getSharedPreferences("LocationPrefs", MODE_PRIVATE)
-        isTracking = prefs.getBoolean("is_tracking", false)
-        if (isTracking) {
-            Log.d(TAG, "Restoring tracking state after service restart")
-            startTracking()
-        }
-    }
-
     private fun startLocationUpdates() {
-        if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            Log.e(TAG, "ACCESS_FINE_LOCATION permission denied")
-            stopSelf()
-            return
-        }
-
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 20 * 1000)
             .setMinUpdateIntervalMillis(10 * 1000)
             .setMinUpdateDistanceMeters(5f)
             .build()
 
-        Log.d(TAG, "Requesting location updates")
         fusedLocationClient.requestLocationUpdates(
             locationRequest,
             locationCallback,
             Looper.getMainLooper()
         )
     }
-
-    private fun saveDistance() {
-        executor.execute {
-            val prefs = getSharedPreferences("LocationPrefs", MODE_PRIVATE)
-            prefs.edit().putString("total_distance_km", totalDistanceKm.get().toString()).apply()
-        }
-    }
-
-    private fun loadDistance() {
-        val prefs = getSharedPreferences("LocationPrefs", MODE_PRIVATE)
-        totalDistanceKm.set(prefs.getString("total_distance_km", "0.0")?.toDoubleOrNull() ?: 0.0)
-        Log.d(TAG, "Loaded distance: ${totalDistanceKm.get()} KM")
-    }
-
-    private fun saveTrackingState() {
-        executor.execute {
-            val prefs = getSharedPreferences("LocationPrefs", MODE_PRIVATE)
-            prefs.edit().putBoolean("is_tracking", isTracking).apply()
-        }
-    }
-
-    private fun checkAndResetDailyDistance() {
-        val prefs = getSharedPreferences("LocationPrefs", MODE_PRIVATE)
-        val lastReset = prefs.getLong("last_reset", 0L)
-        val calendar = Calendar.getInstance(TimeZone.getDefault()).apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        val today = calendar.timeInMillis
-
-        if (lastReset < today) {
-            totalDistanceKm.set(0.0)
-            executor.execute {
-                val resetPrefs = getSharedPreferences("LocationPrefs", MODE_PRIVATE)
-                resetPrefs.edit()
-                    .putLong("last_reset", today)
-                    .putString("total_distance_km", "0.0")
-                    .apply()
-            }
-            Log.d(TAG, "Reset at ${TimeZone.getDefault().id}: ${calendar.time}")
-        }
-    }
-
     private fun updateDistanceAndNotification(locationResult: LocationResult) {
-        val currentLocation = locationResult.lastLocation ?: run {
-            Log.w(TAG, "Location is null. Will try again shortly.")
-            return
-        }
-        checkAndResetDailyDistance()
-        val prefs = getSharedPreferences("LocationPrefs", MODE_PRIVATE)
-        val accuracyThreshold = prefs.getFloat("accuracy_threshold", 30f)
-        if (currentLocation.accuracy > accuracyThreshold) {
-            Log.d(TAG, "Ignored update due to poor accuracy: ${currentLocation.accuracy} meters")
-            return
-        }
-        if (currentLocation.hasSpeed() && currentLocation.speed < 0.1f) {
-            Log.d(TAG, "Ignored update due to low speed: ${currentLocation.speed} m/s")
-            return
-        }
-        var distanceChanged = false
-        synchronized(this) {
-            previousLocation?.let { prev ->
-                val distanceMeters = prev.distanceTo(currentLocation)
-                val distanceKm = distanceMeters / 1000.0
-                totalDistanceKm.getAndUpdate { it + distanceKm }
-                if (distanceKm >= 0.01) { // Only update if change is significant
-                    distanceChanged = true
-                }
-                saveDistance()
-                Log.d(TAG, "Distance updated: ${totalDistanceKm.get()} KM")
-            } ?: run {
-                Log.d(TAG, "First location received, no distance yet")
-            }
-            previousLocation = currentLocation
-        }
-        if (isTracking && distanceChanged) {
-            updateNotification()
-        }
+    val currentLocation = locationResult.lastLocation ?: return
+
+
+    Log.d(TAG, "Location update received: $currentLocation")
+
+
+    if (currentLocation.accuracy > 20) {
+        Log.w(TAG, "Ignoring location due to poor accuracy: ${currentLocation.accuracy} meters")
+        return
+    }
+
+
+    if (previousLocation == null) {
+        previousLocation = currentLocation
+        Log.d(TAG, "Initialized previousLocation: $previousLocation")
+        return
+    }
+
+    val distanceMeters = previousLocation!!.distanceTo(currentLocation)
+
+
+    if (distanceMeters > 500) {
+        Log.w(TAG, "Ignoring large distance: $distanceMeters meters")
+        previousLocation = currentLocation
+        return
+    }
+
+    Log.d(TAG, "Raw Distance: $distanceMeters meters")
+
+    if (distanceMeters > 5) {
+        val distanceKm = distanceMeters / 1000.0
+        totalDistanceKm.getAndUpdate { it + distanceKm }
+        Log.d(TAG, "Accumulated Distance: ${totalDistanceKm.get()} km")
+    }
+
+    previousLocation = currentLocation
+}
+
+
+    private fun updateNotification() {
+        val distanceText = String.format("%.2f KM", totalDistanceKm.get())
+        val notification = createNotification()
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationManager?.notify(NOTIFICATION_ID, notification)
     }
 
     private fun createNotificationChannel() {
@@ -211,54 +143,90 @@ class LocationService : Service() {
             )
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
-            Log.d(TAG, "Notification channel created")
         }
     }
 
     private fun createNotification(): Notification {
-        return buildNotification()
-    }
-
-    private fun updateNotification() {
-        val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.notify(NOTIFICATION_ID, notification)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
-        Log.d(TAG, "Notification updated with distance: $totalDistanceKm KM")
-    }
-
-    private fun buildNotification(): Notification {
         val distanceText = String.format("%.2f KM", totalDistanceKm.get())
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Ozone Tracking")
-            .setContentText("Tracking is active | Distance covered: $distanceText")
+            .setContentTitle("App Tracking")
+            .setContentText("Distance covered: $distanceText")
             .setSmallIcon(android.R.drawable.ic_dialog_map)
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setOngoing(true)
-            .setAutoCancel(false)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        if (isTracking) {
-            fusedLocationClient.removeLocationUpdates(locationCallback)
-            Log.d(TAG, "Location updates removed due to service destruction")
-        }
-        Log.d(TAG, "Service destroyed")
-    }
-
-    override fun onBind(intent: Intent?): IBinder {
-        return binder
-    }
+    override fun onBind(intent: Intent?): IBinder = binder
 
     fun getLastLocation(): Location? = lastLocation?.lastLocation
 
     fun getTotalDistanceKm(): Double = totalDistanceKm.get()
 
     fun isTracking(): Boolean = isTracking
+
+    fun stopTracking(): Boolean {
+        if (isTracking) {
+            fusedLocationClient.removeLocationUpdates(locationCallback)
+            stopForeground(true)
+            stopSelf()
+            isTracking = false
+        }
+        return true
+    }
+}
+
+class KalmanFilter {
+
+    private var estimate: Location? = null
+    private var variance = 1.0
+    private var velocity = 0.0
+    private var acceleration = 0.0
+    private var bearing = 0.0
+    private val baseProcessNoise = 1.0
+    private val minSpeedThreshold = 0.1
+    private val correctionFactor = 1.05
+
+    fun applyFilter(location: Location): Location {
+        if (estimate == null) {
+            estimate = location
+            velocity = if (location.hasSpeed()) location.speed.toDouble() else 0.0
+            bearing = if (location.hasBearing()) location.bearing.toDouble() else 0.0
+            return estimate as Location
+        }
+
+        val timeDelta = (location.time - (estimate!!.time)).toDouble() / 1000.0
+        val accuracy = location.accuracy.toDouble()
+        val speed = if (location.hasSpeed()) location.speed.toDouble() else velocity
+        val processNoise = baseProcessNoise + (accuracy / 10.0) + (Math.abs(acceleration) / 10.0)
+        val measurementNoise = accuracy * accuracy
+        val gain = variance / (variance + measurementNoise)
+
+        val predictedLat = estimate!!.latitude + velocity * timeDelta * Math.cos(Math.toRadians(bearing)) / 111320.0
+        val predictedLon = estimate!!.longitude + velocity * timeDelta * Math.sin(Math.toRadians(bearing)) / (111320.0 * Math.cos(Math.toRadians(estimate!!.latitude)))
+
+        val newLatitude = predictedLat + gain * (location.latitude - predictedLat)
+        val newLongitude = predictedLon + gain * (location.longitude - predictedLon)
+
+        estimate?.latitude = newLatitude
+        estimate?.longitude = newLongitude
+
+        if (speed > minSpeedThreshold) {
+            acceleration = (speed - velocity) / timeDelta
+            velocity = speed
+        } else {
+            velocity = 0.0
+            acceleration = 0.0
+        }
+
+        if (location.hasBearing()) {
+            bearing = location.bearing.toDouble()
+        }
+
+        variance = (1 - gain) * variance + processNoise
+
+        estimate?.latitude = estimate!!.latitude * correctionFactor
+        estimate?.longitude = estimate!!.longitude * correctionFactor
+
+        return estimate as Location
+    }
 }
