@@ -1,40 +1,35 @@
 package com.harmonyloop.location_tracker
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.Service
+import android.app.*
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.location.Location
-import android.os.Binder
-import android.os.Build
-import android.os.IBinder
-import android.os.Looper
+import android.os.*
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
+import kotlinx.coroutines.*
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.Executors
 
 class LocationService : Service() {
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private var lastLocation: LocationResult? = null
+    private lateinit var wakeLock: PowerManager.WakeLock
+    private var locationCallback: LocationCallback? = null
+    private var lastLocation: Location? = null
     private var previousLocation: Location? = null
-    private val totalDistanceKm = AtomicReference<Double>(0.0)
-    private var isTracking = false
-    private val executor = Executors.newSingleThreadExecutor()
-
-    private val kalmanFilter = KalmanFilter()
-
-    private val locationCallback = object : LocationCallback() {
-        override fun onLocationResult(locationResult: LocationResult) {
-            lastLocation = locationResult
-            Log.d(TAG, "Location update received: ${locationResult.lastLocation}")
-            updateDistanceAndNotification(locationResult)
-        }
-    }
+    private lateinit var locationDatabase: LocationDatabase
+    private lateinit var locationProcessor: EnhancedLocationProcessor
+    private lateinit var trackingSessionManager: TrackingSessionManager
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val locationBuffer = mutableListOf<LocationEntity>()
+    private var isIndoor = false
+    private var currentSessionId: String? = null
+    private val config = TrackingConfig()
+    private var isTrackingActive = false
 
     inner class LocalBinder : Binder() {
         fun getService(): LocationService = this@LocationService
@@ -42,97 +37,173 @@ class LocationService : Service() {
 
     private val binder = LocalBinder()
 
+    fun isTracking(): Boolean {
+        Log.d(TAG, "isTracking: isTrackingActive=$isTrackingActive, locationCallback=$locationCallback, wakeLockHeld=${wakeLock.isHeld}")
+        return isTrackingActive && locationCallback != null && wakeLock.isHeld
+    }
+
     companion object {
         private const val NOTIFICATION_ID = 1
         private const val CHANNEL_ID = "location_service_channel"
-        private const val TAG = "LocationService"
+        const val TAG = "LocationService"
+        private const val WAKE_LOCK_TAG = "LocationService::WakeLock"
+        private val totalDistanceKm = AtomicReference(0.0)
+        fun getTotalDistanceKm(): Double = totalDistanceKm.get()
     }
 
     override fun onCreate() {
         super.onCreate()
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        locationDatabase = LocationDatabase.getInstance(this)
+        trackingSessionManager = TrackingSessionManager(this, locationDatabase)
+        locationProcessor = EnhancedLocationProcessor()
+
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
+
         createNotificationChannel()
-        Log.d(TAG, "Service created, waiting for startTracking")
+        Log.d(TAG, "Service created")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "onStartCommand called")
-        return START_STICKY
+    Log.d(TAG, "onStartCommand called")
+    
+    when (intent?.action) {
+        "START_TRACKING" -> serviceScope.launch {
+            try {
+                startTracking()
+            } catch (e: Exception) {
+                Log.e(TAG, "Tracking failed: ${e.message}")
+                LocationTrackingRecovery(this@LocationService)
+                    .handleLocationServiceError(LocationError.ServiceError(e.message))
+            }
+        }
+        "STOP_TRACKING" -> stopTracking()
+    }
+    return START_STICKY
     }
 
-    fun startTracking(): Boolean {
-        if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            Log.e(TAG, "Missing ACCESS_FINE_LOCATION permission, cannot start tracking")
-            return false
-        }
-        if (!isTracking) {
-            val notification = createNotification()
+    suspend fun startTracking(): Boolean {
+    if (isTrackingActive) return true
+    
+    try {
+        // Move main-thread operations to coroutine context
+        val notification = createNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+        } else {
             startForeground(NOTIFICATION_ID, notification)
-            startLocationUpdates()
-            isTracking = true
         }
+
+        if (!wakeLock.isHeld) {
+            wakeLock.acquire(TimeUnit.HOURS.toMillis(config.maxTrackingHours.toLong()))
+        }
+        
+        startLocationUpdates()
+        isTrackingActive = true
+        Log.i(TAG, "Location tracking started")
         return true
+    } catch (e: Exception) {
+        Log.e(TAG, "Foreground start failed: ${e.message}")
+        throw e
     }
+}
 
     private fun startLocationUpdates() {
-        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 20 * 1000)
-            .setMinUpdateIntervalMillis(10 * 1000)
-            .setMinUpdateDistanceMeters(5f)
+        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, config.updateInterval)
+            .setMinUpdateIntervalMillis(config.updateInterval / 2)
+            .setMinUpdateDistanceMeters(config.minDistance)
             .build()
 
-        fusedLocationClient.requestLocationUpdates(
-            locationRequest,
-            locationCallback,
-            Looper.getMainLooper()
-        )
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(locationResult: LocationResult) {
+                serviceScope.launch {
+                    processLocationBatch(locationResult.locations)
+                }
+            }
+        }
+
+        try {
+            fusedLocationClient.requestLocationUpdates(
+                locationRequest,
+                locationCallback!!,
+                Looper.getMainLooper()
+            )
+            Log.d(TAG, "Location updates requested")
+        } catch (e: SecurityException) {
+            LocationTrackingRecovery(this).handleLocationServiceError(LocationError.PermissionDenied)
+        } catch (e: Exception) {
+            LocationTrackingRecovery(this).handleLocationServiceError(LocationError.ServiceError(e.message))
+        }
     }
 
-    private fun updateDistanceAndNotification(locationResult: LocationResult) {
-        val currentLocation = locationResult.lastLocation ?: return
+    private fun processLocationBatch(locations: List<Location>) {
+        locations.forEach { rawLocation ->
+            val processed = locationProcessor.processLocation(rawLocation)
+            processed?.let {
+                lastLocation = it.location
+                isIndoor = it.isIndoor
 
-        if (currentLocation.accuracy > 20) {
-            Log.w(TAG, "Ignoring location due to poor accuracy: ${currentLocation.accuracy} meters")
-            return
+                previousLocation?.let { prev ->
+                    val distanceMeters = prev.distanceTo(it.location)
+                    if (distanceMeters >= config.minDistance) {
+                        val distanceKm = distanceMeters / 1000.0
+                        totalDistanceKm.getAndUpdate { d -> d + distanceKm }
+
+                        saveLocationToDatabase(it.location, distanceKm)
+                        updateNotification()
+                    }
+                }
+
+                previousLocation = it.location
+            }
         }
+        flushLocationBuffer()
+    }
 
-        if (previousLocation == null) {
-            previousLocation = currentLocation
-            Log.d(TAG, "Initialized previousLocation: $previousLocation")
-            return
+    private fun saveLocationToDatabase(location: Location, distance: Double) {
+        serviceScope.launch {
+            val locationEntity = LocationEntity(
+                timestamp = location.time,
+                latitude = location.latitude,
+                longitude = location.longitude,
+                accuracy = location.accuracy,
+                altitude = if (location.hasAltitude()) location.altitude else null,
+                speed = if (location.hasSpeed()) location.speed else null,
+                bearing = if (location.hasBearing()) location.bearing else null,
+                distanceFromPrevious = distance,
+                sessionId = currentSessionId ?: trackingSessionManager.startDailySession(),
+                isIndoor = isIndoor
+            )
+            locationBuffer.add(locationEntity)
+            if (locationBuffer.size >= 10) flushLocationBuffer()
         }
+    }
 
-        val distanceMeters = previousLocation!!.distanceTo(currentLocation)
-
-        if (distanceMeters > 500) {
-            Log.w(TAG, "Ignoring large distance: $distanceMeters meters")
-            previousLocation = currentLocation
-            return
+    private fun flushLocationBuffer() {
+        serviceScope.launch {
+            if (locationBuffer.isNotEmpty()) {
+                locationDatabase.locationDao().insertLocations(locationBuffer.toList())
+                locationBuffer.clear()
+            }
         }
-
-        Log.d(TAG, "Raw Distance: $distanceMeters meters")
-
-        if (distanceMeters > 5) {
-            val distanceKm = distanceMeters / 1000.0
-            totalDistanceKm.getAndUpdate { it + distanceKm }
-            Log.d(TAG, "Accumulated Distance: ${totalDistanceKm.get()} km")
-        }
-
-        previousLocation = currentLocation
-        updateNotification()
     }
 
     private fun updateNotification() {
         val distanceText = String.format("%.2f KM", totalDistanceKm.get())
-        val notificationManager = getSystemService(NotificationManager::class.java)
-
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Ozone Tracking")
-            .setContentText("Distance covered: $distanceText")
+            .setContentTitle("Ozone Tracking Active")
+            .setContentText("Distance: $distanceText")
             .setSmallIcon(android.R.drawable.ic_dialog_map)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setOngoing(true)
+            .setShowWhen(true)
+            .setWhen(System.currentTimeMillis())
             .build()
 
-        notificationManager?.notify(NOTIFICATION_ID, notification)
+        val manager = getSystemService(NotificationManager::class.java)
+        manager?.notify(NOTIFICATION_ID, notification)
     }
 
     private fun createNotificationChannel() {
@@ -141,7 +212,11 @@ class LocationService : Service() {
                 CHANNEL_ID,
                 "Location Tracking",
                 NotificationManager.IMPORTANCE_LOW
-            )
+            ).apply {
+                description = "Used for sales tracking in the background"
+                setShowBadge(false)
+            }
+
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
@@ -150,84 +225,88 @@ class LocationService : Service() {
     private fun createNotification(): Notification {
         val distanceText = String.format("%.2f KM", totalDistanceKm.get())
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("App Tracking")
-            .setContentText("Distance covered: $distanceText")
+            .setContentTitle("App Tracking Active")
+            .setContentText("Distance: $distanceText")
             .setSmallIcon(android.R.drawable.ic_dialog_map)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setOngoing(true)
+            .setShowWhen(true)
+            .setWhen(System.currentTimeMillis())
             .build()
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
 
-    fun getLastLocation(): Location? = lastLocation?.lastLocation
+    fun getLastLocation(): Location? = lastLocation
 
-    fun getTotalDistanceKm(): Double = totalDistanceKm.get()
+    fun isIndoor(): Boolean = isIndoor
 
-    fun isTracking(): Boolean = isTracking
+    fun pauseTracking() {
+        locationCallback?.let {
+            fusedLocationClient.removeLocationUpdates(it)
+            locationCallback = null
+        }
+        Log.d(TAG, "Tracking paused")
+    }
+
+    fun resumeTracking() {
+        if (isTrackingActive && locationCallback == null) {
+            startLocationUpdates()
+            Log.d(TAG, "Tracking resumed")
+        }
+    }
 
     fun stopTracking(): Boolean {
-        if (isTracking) {
-            fusedLocationClient.removeLocationUpdates(locationCallback)
-            stopForeground(true)
+        if (isTrackingActive) {
+            locationCallback?.let {
+                fusedLocationClient.removeLocationUpdates(it)
+                locationCallback = null
+            }
+
+            flushLocationBuffer()
+
+            currentSessionId?.let { sessionId ->
+                serviceScope.launch {
+                    val repo = LocationRepository(this@LocationService)
+                    val session = repo.sessionDao.getSession(sessionId)
+                    session?.let {
+                        repo.sessionDao.completeSession(
+                            sessionId = sessionId,
+                            endTime = System.currentTimeMillis(),
+                            distance = totalDistanceKm.get(),
+                            status = SessionStatus.COMPLETED.name
+                        )
+                    }
+                }
+            }
+
+            if (wakeLock.isHeld) {
+                try {
+                    wakeLock.release()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error releasing wake lock", e)
+                }
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
+
             stopSelf()
-            isTracking = false
+            isTrackingActive = false
+            Log.i(TAG, "Location tracking stopped")
         }
         return true
     }
-}
 
-class KalmanFilter {
-
-    private var estimate: Location? = null
-    private var variance = 1.0
-    private var velocity = 0.0
-    private var acceleration = 0.0
-    private var bearing = 0.0
-    private val baseProcessNoise = 1.0
-    private val minSpeedThreshold = 0.1
-    private val correctionFactor = 1.05
-
-    fun applyFilter(location: Location): Location {
-        if (estimate == null) {
-            estimate = location
-            velocity = if (location.hasSpeed()) location.speed.toDouble() else 0.0
-            bearing = if (location.hasBearing()) location.bearing.toDouble() else 0.0
-            return estimate as Location
-        }
-
-        val timeDelta = (location.time - (estimate!!.time)).toDouble() / 1000.0
-        val accuracy = location.accuracy.toDouble()
-        val speed = if (location.hasSpeed()) location.speed.toDouble() else velocity
-        val processNoise = baseProcessNoise + (accuracy / 10.0) + (Math.abs(acceleration) / 10.0)
-        val measurementNoise = accuracy * accuracy
-        val gain = variance / (variance + measurementNoise)
-
-        val predictedLat = estimate!!.latitude + velocity * timeDelta * Math.cos(Math.toRadians(bearing)) / 111320.0
-        val predictedLon = estimate!!.longitude + velocity * timeDelta * Math.sin(Math.toRadians(bearing)) / (111320.0 * Math.cos(Math.toRadians(estimate!!.latitude)))
-
-        val newLatitude = predictedLat + gain * (location.latitude - predictedLat)
-        val newLongitude = predictedLon + gain * (location.longitude - predictedLon)
-
-        estimate?.latitude = newLatitude
-        estimate?.longitude = newLongitude
-
-        if (speed > minSpeedThreshold) {
-            acceleration = (speed - velocity) / timeDelta
-            velocity = speed
-        } else {
-            velocity = 0.0
-            acceleration = 0.0
-        }
-
-        if (location.hasBearing()) {
-            bearing = location.bearing.toDouble()
-        }
-
-        variance = (1 - gain) * variance + processNoise
-
-        estimate?.latitude = estimate!!.latitude * correctionFactor
-        estimate?.longitude = estimate!!.longitude * correctionFactor
-
-        return estimate as Location
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
+        if (wakeLock.isHeld) wakeLock.release()
+        Log.d(TAG, "Service destroyed")
     }
 }
