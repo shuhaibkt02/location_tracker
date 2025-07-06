@@ -1,19 +1,28 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.harmonyloop.location_tracker">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    
+    <uses-permission android:name="android.permission.INTERNET" />
+    
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-
-    <application
-        android:label="location_tracker">
-        
+    <application>
         <service
-            android:name="com.harmonyloop.location_tracker.LocationService"
+            android:name="com.example.distance_tracker.DistanceTrackingService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="location" />
+            android:foregroundServiceType="location"
+            android:stopWithTask="false" />
     </application>
+
 </manifest>

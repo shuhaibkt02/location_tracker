@@ -1,4 +1,4 @@
-group = "com.harmonyloop.location_tracker"
+group = "com.example.distance_tracker"
 version = "1.0-SNAPSHOT"
 
 buildscript {
@@ -11,6 +11,7 @@ buildscript {
     dependencies {
         classpath("com.android.tools.build:gradle:8.7.0")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version")
+        classpath("androidx.room:room-gradle-plugin:2.6.1") // Optional, not strictly needed
     }
 }
 
@@ -18,16 +19,27 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        maven {
+            url "${System.env.HOME}/Tools/flutter_linux_3.29.2-stable/.android/Flutter"
+        }
+        maven {
+            url "https://storage.googleapis.com/download.flutter.io"
+        }
     }
 }
 
 apply plugin: "com.android.library"
 apply plugin: "kotlin-android"
+apply plugin: "kotlin-kapt"
 
 android {
-    namespace = "com.harmonyloop.location_tracker"
-
+    namespace = "com.example.distance_tracker"
     compileSdk = 35
+
+    defaultConfig {
+        minSdk = 21
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -35,41 +47,61 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11
+    jvmTarget = "11"
     }
+
 
     sourceSets {
-        main.java.srcDirs += "src/main/kotlin"
-        test.java.srcDirs += "src/test/kotlin"
+        main {
+            java.srcDirs += 'src/main/kotlin'
+        }
     }
 
-    defaultConfig {
-        minSdk = 21
-        targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
-    }
-
-
-    dependencies {
-        implementation ("com.google.android.gms:play-services-location:21.3.0")
-        testImplementation("org.jetbrains.kotlin:kotlin-test")
-        testImplementation("org.mockito:mockito-core:5.0.0")
+    buildFeatures {
+        buildConfig = true
     }
 
     testOptions {
         unitTests.all {
             useJUnitPlatform()
-
             testLogging {
-               events "passed", "skipped", "failed", "standardOut", "standardError"
-               outputs.upToDateWhen {false}
-               showStandardStreams = true
+                events "passed", "skipped", "failed", "standardOut", "standardError"
+                outputs.upToDateWhen { false }
+                showStandardStreams = true
             }
         }
     }
 }
 
-flutter {
-    source "../.."
+kapt {
+    correctErrorTypes = true
+    arguments {
+        arg("room.schemaLocation", "$projectDir/schemas")
+    }
+}
+
+dependencies {
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.activity:activity-ktx:1.9.3")
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("androidx.lifecycle:lifecycle-service:2.8.6")
+    implementation("androidx.lifecycle:lifecycle-process:2.8.6")
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    
+    testImplementation("org.jetbrains.kotlin:kotlin-test")
+    testImplementation("org.mockito:mockito-core:5.14.2")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    testImplementation("androidx.room:room-testing:2.6.1")
+    
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation("androidx.test.espresso:espresso-idling-resource:3.6.1")
 }

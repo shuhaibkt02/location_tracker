@@ -1,4 +1,4 @@
-package com.example.distance_tracker
+package com.harmonyloop.location_tracker
 
 import android.location.Location
 import kotlin.math.sqrt

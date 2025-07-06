@@ -1,4 +1,4 @@
-package com.example.distance_tracker
+package com.harmonyloop.location_tracker
 
 enum class TrackingStatus {
     STATIONARY,

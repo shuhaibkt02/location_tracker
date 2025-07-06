@@ -1,4 +1,4 @@
-package com.example.distance_tracker
+package com.harmonyloop.location_tracker
 
 import android.util.Log
 import java.text.SimpleDateFormat
