@@ -46,4 +46,13 @@ class MethodChannelLocationTracker extends LocationTrackerPlatform {
       throw 'Failed to get total distance: ${e.message}';
     }
   }
+
+  @override
+  Future<void> updateNotificationTitle(String title) async {
+    try {
+      await _channel.invokeMethod('updateNotificationTitle', {'title': title});
+    } on PlatformException catch (e) {
+      throw 'Failed to update notification title: ${e.message}';
+    }
+  }
 }

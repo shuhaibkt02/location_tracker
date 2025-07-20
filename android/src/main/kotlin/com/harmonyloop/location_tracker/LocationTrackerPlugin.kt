@@ -94,5 +94,18 @@ class DistanceTrackerPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
       else -> result.notImplemented()
     }
+    if (call.method == "updateNotificationTitle") {
+      val title = call.argument<String>("title")
+      if (title != null) {
+        val intent = Intent(context, DistanceTrackingService::class.java)
+        intent.action = "UPDATE_NOTIFICATION_TITLE"
+        intent.putExtra("title", title)
+        context.startService(intent)
+        result.success(true)
+      } else {
+        result.error("INVALID_ARGUMENT", "Title is required", null)
+      }
+      return
+    }
   }
 }

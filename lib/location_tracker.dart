@@ -29,4 +29,8 @@ class LocationTracker {
   static Future<double> getTotalDistance() async {
     return _platform.getTotalDistance();
   }
+
+  static Future<void> updateNotificationTitle(String title) async {
+    return _platform.updateNotificationTitle(title);
+  }
 }

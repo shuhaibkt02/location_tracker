@@ -19,4 +19,5 @@ abstract class LocationTrackerPlatform extends PlatformInterface {
   Future<void> stopTracking();
   Future<Map<String, dynamic>?> getLocationData();
   Future<double> getTotalDistance();
+  Future<void> updateNotificationTitle(String title);
 }

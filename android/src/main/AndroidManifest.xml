@@ -23,6 +23,7 @@
             android:exported="false"
             android:foregroundServiceType="location"
             android:stopWithTask="false" />
+        <receiver android:name=".kotlin.com.harmonyloop.location_tracker.MidnightStopReceiver" android:exported="false" />
     </application>
 
 </manifest>

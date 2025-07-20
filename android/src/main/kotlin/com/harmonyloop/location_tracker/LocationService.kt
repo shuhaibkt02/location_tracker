@@ -18,6 +18,8 @@ import com.google.android.gms.location.*
 import android.app.Service.STOP_FOREGROUND_REMOVE
 import android.os.Handler
 import java.util.concurrent.TimeUnit
+import android.app.AlarmManager
+import com.harmonyloop.location_tracker.MidnightStopReceiver
 
 class DistanceTrackingService : Service() {
 
@@ -44,10 +46,13 @@ class DistanceTrackingService : Service() {
     private val timeoutHandler = Handler(Looper.getMainLooper())
     private var gpsTimeoutRunnable: Runnable? = null
 
+    private var notificationTitle: String = "Distance Tracking"
+
     companion object {
         private const val NOTIF_ID = 101
         private const val CHANNEL_ID = "distance_tracker"
         private const val STOP_ACTION = "STOP_TRACKING"
+        private const val STOP_FROM_MIDNIGHT_ACTION = "STOP_FROM_MIDNIGHT"
         private const val LOCATION_SETTINGS_REQUEST = 1001
         private const val MAX_LOCATION_ACCURACY_M = 50.0f
         
@@ -65,6 +70,36 @@ class DistanceTrackingService : Service() {
         private const val LAST_KNOWN_LOCATION_MAX_AGE_MS = 300000L // 5 minutes
         
         private const val WAKE_LOCK_TAG = "DistanceTracker:LocationWakeLock"
+
+        fun scheduleMidnightAlarm(context: Context) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val intent = Intent(context, MidnightStopReceiver::class.java)
+            val pendingIntent = PendingIntent.getBroadcast(
+                context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val now = System.currentTimeMillis()
+            val calendar = java.util.Calendar.getInstance().apply {
+                timeInMillis = now
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+                add(java.util.Calendar.DAY_OF_YEAR, 1)
+            }
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                calendar.timeInMillis,
+                pendingIntent
+            )
+        }
+        fun cancelMidnightAlarm(context: Context) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val intent = Intent(context, MidnightStopReceiver::class.java)
+            val pendingIntent = PendingIntent.getBroadcast(
+                context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pendingIntent)
+        }
     }
     
     // Location provider priority enum
@@ -117,10 +152,18 @@ class DistanceTrackingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == STOP_ACTION) {
-            LogHelper.log("Stop action received from notification")
+        if (intent?.action == STOP_ACTION || intent?.action == STOP_FROM_MIDNIGHT_ACTION) {
+            LogHelper.log("Stop action received from notification or midnight alarm")
             stopSelf()
             return START_NOT_STICKY
+        }
+        if (intent?.action == "UPDATE_NOTIFICATION_TITLE") {
+            val newTitle = intent.getStringExtra("title")
+            if (!newTitle.isNullOrEmpty()) {
+                notificationTitle = newTitle
+                updateNotification(null, true)
+            }
+            return START_STICKY
         }
 
         LogHelper.log("DistanceTrackingService start command received")
@@ -154,6 +197,9 @@ class DistanceTrackingService : Service() {
             
             // Stop foreground service
             stopForeground(STOP_FOREGROUND_REMOVE)
+            
+            // Cancel midnight alarm when service stops
+            cancelMidnightAlarm(this)
             
             LogHelper.log("DistanceTrackingService destroyed successfully")
         } catch (e: Exception) {
@@ -655,30 +701,31 @@ class DistanceTrackingService : Service() {
     }
 
     private fun createNotification(
-        content: String, 
-        showStopButton: Boolean, 
+        content: String?,
+        showStopButton: Boolean,
         pendingIntent: PendingIntent? = null
     ): Notification {
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Distance Tracking")
-            .setContentText(content)
+            .setContentTitle(notificationTitle)
+            .setContentText(content ?: "")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOngoing(true)
             .setAutoCancel(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setContentIntent(getAppLaunchIntent())
 
         pendingIntent?.let { builder.setContentIntent(it) }
         return builder.build()
     }
 
     private fun updateNotification(
-        content: String, 
-        showStopButton: Boolean = true, 
+        content: String?,
+        showStopButton: Boolean = true,
         pendingIntent: PendingIntent? = null
     ) {
         try {
-            val notification = createNotification(content, showStopButton, pendingIntent)
+            val notification = createNotification(content ?: "", showStopButton, pendingIntent)
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.notify(NOTIF_ID, notification)
         } catch (e: Exception) {
@@ -700,6 +747,16 @@ class DistanceTrackingService : Service() {
         }
         return PendingIntent.getActivity(
             this, LOCATION_SETTINGS_REQUEST + 1, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    private fun getAppLaunchIntent(): PendingIntent {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+        return PendingIntent.getActivity(
+            this,
+            0,
+            launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }
