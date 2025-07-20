@@ -16,7 +16,9 @@
     
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <application>
+    <application
+        android:allowBackup="false"
+        android:fullBackupContent="false">
         <service
             android:name="com.example.distance_tracker.DistanceTrackingService"
             android:enabled="true"
