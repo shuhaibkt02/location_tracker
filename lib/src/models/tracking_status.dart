@@ -9,6 +9,9 @@ enum TrackingStatus {
   /// Stationary for extended period (> 3 minutes); GPS polling throttled.
   paused,
 
+  /// Active tracking was explicitly stopped or concluded.
+  stopped,
+
   /// Location permission was revoked while tracking was active.
   permissionRevoked,
 
@@ -26,6 +29,8 @@ enum TrackingStatus {
         return TrackingStatus.moving;
       case 'PAUSED':
         return TrackingStatus.paused;
+      case 'STOPPED':
+        return TrackingStatus.stopped;
       case 'PERMISSION_REVOKED':
         return TrackingStatus.permissionRevoked;
       case 'RESUMED':

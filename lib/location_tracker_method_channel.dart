@@ -9,12 +9,50 @@ import 'package:location_tracker/src/models/service_diagnostics.dart';
 import 'package:location_tracker/src/models/tracking_status.dart';
 
 class MethodChannelLocationTracker extends LocationTrackerPlatform {
-  static const MethodChannel _channel = MethodChannel('location_tracker');
-  static const EventChannel _eventChannel = EventChannel('location_tracker/events');
+  static const MethodChannel _channel =
+      MethodChannel('com.harmonyloop.location_tracker');
+  static const EventChannel _eventChannel =
+      EventChannel('com.harmonyloop.location_tracker/events');
 
   Stream<LocationPoint>? _locationStream;
   Stream<TrackingStatus>? _statusStream;
   Stream<SecurityAlert>? _securityAlertStream;
+
+  Future<T?> _invoke<T>(String method, [dynamic arguments]) async {
+    try {
+      return await _channel.invokeMethod<T>(method, arguments);
+    } on PlatformException catch (e) {
+      throw _mapPlatformException(e);
+    }
+  }
+
+  LocationTrackerException _mapPlatformException(PlatformException e) {
+    switch (e.code) {
+      case 'PERMISSION_DENIED':
+        return LocationPermissionDeniedException(
+          message: e.message ?? 'Required permissions were denied',
+          details: e.details,
+        );
+      case 'LOCATION_DISABLED':
+      case 'LOCATION_SERVICES_DISABLED':
+        return LocationServicesDisabledException(
+          message: e.message ?? 'Location services are disabled',
+          details: e.details,
+        );
+      case 'NOT_TRACKING':
+      case 'TRACKING_NOT_ACTIVE':
+        return LocationTrackingNotActiveException(
+          message: e.message ?? 'Tracking is not currently active',
+          details: e.details,
+        );
+      default:
+        return LocationTrackerException(
+          code: e.code,
+          message: e.message ?? 'Platform operation failed: ${e.code}',
+          details: e.details,
+        );
+    }
+  }
 
   @override
   Stream<LocationPoint> get onLocationChanged {
@@ -46,244 +84,105 @@ class MethodChannelLocationTracker extends LocationTrackerPlatform {
 
   @override
   Future<String?> getPlatformVersion() async {
-    try {
-      return await _channel.invokeMethod<String>('getPlatformVersion');
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to get platform version',
-        details: e.details,
-      );
-    }
+    return await _invoke<String>('getPlatformVersion');
   }
 
   @override
   Future<LocationPermissionStatus> checkPermissions() async {
-    try {
-      final res = await _channel.invokeMethod<Map<dynamic, dynamic>>('checkPermissions');
-      return LocationPermissionStatus.fromMap(res ?? {});
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to check permissions',
-        details: e.details,
-      );
-    }
+    final res = await _invoke<Map<dynamic, dynamic>>('checkPermissions');
+    return LocationPermissionStatus.fromMap(res ?? {});
   }
 
   @override
   Future<LocationPermissionStatus> requestPermissions() async {
-    try {
-      final res = await _channel.invokeMethod<Map<dynamic, dynamic>>('requestPermissions');
-      return LocationPermissionStatus.fromMap(res ?? {});
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to request permissions',
-        details: e.details,
-      );
-    }
+    final res = await _invoke<Map<dynamic, dynamic>>('requestPermissions');
+    return LocationPermissionStatus.fromMap(res ?? {});
   }
 
   @override
   Future<void> startTracking([Map<String, dynamic>? config]) async {
-    try {
-      await _channel.invokeMethod('startTracking', config);
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to start tracking',
-        details: e.details,
-      );
-    }
+    await _invoke<dynamic>('startTracking', config);
   }
 
   @override
   Future<void> stopTracking() async {
-    try {
-      await _channel.invokeMethod('stopTracking');
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to stop tracking',
-        details: e.details,
-      );
-    }
+    await _invoke<dynamic>('stopTracking');
   }
 
   @override
   Future<bool> isTracking() async {
-    try {
-      final res = await _channel.invokeMethod<bool>('isTracking');
-      return res ?? false;
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to check tracking state',
-        details: e.details,
-      );
-    }
+    final res = await _invoke<bool>('isTracking');
+    return res ?? false;
   }
 
   @override
   Future<Map<String, dynamic>?> getLocationData() async {
-    try {
-      final data = await _channel.invokeMethod('getLocationData');
-      return data != null ? Map<String, dynamic>.from(data) : null;
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to get location data',
-        details: e.details,
-      );
-    }
+    final data = await _invoke<Map<dynamic, dynamic>>('getLocationData');
+    return data != null ? Map<String, dynamic>.from(data) : null;
   }
 
   @override
   Future<double> getTotalDistance() async {
-    try {
-      final distance = await _channel.invokeMethod('getTotalDistance');
-      return distance != null ? (distance as num).toDouble() : 0.0;
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to get total distance',
-        details: e.details,
-      );
-    }
+    final distance = await _invoke<dynamic>('getTotalDistance');
+    return distance != null ? (distance as num).toDouble() : 0.0;
   }
 
   @override
   Future<List<DailyDistance>> getDailyHistory({int days = 7}) async {
-    try {
-      final res = await _channel.invokeMethod<List<dynamic>>(
-        'getDailyHistory',
-        {'days': days},
-      );
-      if (res == null) return [];
-      return res
-          .whereType<Map<dynamic, dynamic>>()
-          .map((e) => DailyDistance.fromMap(e))
-          .toList();
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to get daily history',
-        details: e.details,
-      );
-    }
+    final res = await _invoke<List<dynamic>>(
+      'getDailyHistory',
+      {'days': days},
+    );
+    if (res == null) return [];
+    return res
+        .whereType<Map<dynamic, dynamic>>()
+        .map((e) => DailyDistance.fromMap(e))
+        .toList();
   }
 
   @override
   Future<void> updateNotificationTitle(String title) async {
-    try {
-      await _channel.invokeMethod('updateNotificationTitle', {'title': title});
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to update notification title',
-        details: e.details,
-      );
-    }
+    await _invoke<dynamic>('updateNotificationTitle', {'title': title});
   }
 
   @override
   Future<bool> isIgnoringBatteryOptimizations() async {
-    try {
-      final res =
-          await _channel.invokeMethod<bool>('isIgnoringBatteryOptimizations');
-      return res ?? false;
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to check battery optimization status',
-        details: e.details,
-      );
-    }
+    final res = await _invoke<bool>('isIgnoringBatteryOptimizations');
+    return res ?? false;
   }
 
   @override
   Future<bool> requestIgnoreBatteryOptimizations() async {
-    try {
-      final res =
-          await _channel.invokeMethod<bool>('requestIgnoreBatteryOptimizations');
-      return res ?? false;
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to request battery optimization ignore',
-        details: e.details,
-      );
-    }
+    final res = await _invoke<bool>('requestIgnoreBatteryOptimizations');
+    return res ?? false;
   }
 
   @override
   Future<bool> openOemBatterySettings() async {
-    try {
-      final res = await _channel.invokeMethod<bool>('openOemBatterySettings');
-      return res ?? false;
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to open OEM battery settings',
-        details: e.details,
-      );
-    }
+    final res = await _invoke<bool>('openOemBatterySettings');
+    return res ?? false;
   }
 
   @override
   Future<List<String>> getLogs() async {
-    try {
-      final res = await _channel.invokeMethod<List<dynamic>>('getLogs');
-      return res?.map((e) => e.toString()).toList() ?? [];
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to get logs',
-        details: e.details,
-      );
-    }
+    final res = await _invoke<List<dynamic>>('getLogs');
+    return res?.map((e) => e.toString()).toList() ?? [];
   }
 
   @override
   Future<String?> exportLogsToFile() async {
-    try {
-      return await _channel.invokeMethod<String>('exportLogsToFile');
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to export logs',
-        details: e.details,
-      );
-    }
+    return await _invoke<String>('exportLogsToFile');
   }
 
   @override
   Future<bool> clearLogs() async {
-    try {
-      final res = await _channel.invokeMethod<bool>('clearLogs');
-      return res ?? false;
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to clear logs',
-        details: e.details,
-      );
-    }
+    final res = await _invoke<bool>('clearLogs');
+    return res ?? false;
   }
 
   @override
   Future<ServiceDiagnostics> getServiceDiagnostics() async {
-    try {
-      final res = await _channel
-          .invokeMethod<Map<dynamic, dynamic>>('getServiceDiagnostics');
-      return ServiceDiagnostics.fromMap(res ?? {});
-    } on PlatformException catch (e) {
-      throw LocationTrackerException(
-        code: e.code,
-        message: e.message ?? 'Failed to get service diagnostics',
-        details: e.details,
-      );
-    }
+    final res = await _invoke<Map<dynamic, dynamic>>('getServiceDiagnostics');
+    return ServiceDiagnostics.fromMap(res ?? {});
   }
 }

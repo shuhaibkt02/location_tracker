@@ -1,6 +1,7 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:location_tracker/location_tracker.dart';
-import 'package:location_tracker/location_tracker_platform_interface.dart';
+import 'package:location_tracker/location_tracker_method_channel.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 class MockLocationTrackerPlatform
@@ -8,14 +9,14 @@ class MockLocationTrackerPlatform
     implements LocationTrackerPlatform {
   @override
   Stream<LocationPoint> get onLocationChanged => Stream.value(
-        const LocationPoint(
+        LocationPoint(
           latitude: 37.7749,
           longitude: -122.4194,
           accuracy: 5.0,
           speed: 1.2,
           altitude: 10.0,
           provider: 'gps',
-          timestamp: 1700000000,
+          timestamp: DateTime.fromMillisecondsSinceEpoch(1700000000),
         ),
       );
 
@@ -269,6 +270,96 @@ void main() {
 
       final alert = await LocationTracker.onSecurityAlert.first;
       expect(alert.alertType, 'MOCK_LOCATION_DETECTED');
+      expect(alert.isMockLocation, true);
+    });
+  });
+
+  group('Typed Exceptions & Call-site Mapping', () {
+    final methodChannel = MethodChannelLocationTracker();
+
+    test('Maps PERMISSION_DENIED to LocationPermissionDeniedException', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('com.harmonyloop.location_tracker'),
+        (call) async {
+          if (call.method == 'startTracking') {
+            throw PlatformException(
+              code: 'PERMISSION_DENIED',
+              message: 'Permissions denied',
+            );
+          }
+          return null;
+        },
+      );
+
+      expect(
+        () => methodChannel.startTracking(),
+        throwsA(isA<LocationPermissionDeniedException>()),
+      );
+    });
+
+    test('Maps LOCATION_DISABLED to LocationServicesDisabledException', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('com.harmonyloop.location_tracker'),
+        (call) async {
+          if (call.method == 'startTracking') {
+            throw PlatformException(
+              code: 'LOCATION_DISABLED',
+              message: 'GPS off',
+            );
+          }
+          return null;
+        },
+      );
+
+      expect(
+        () => methodChannel.startTracking(),
+        throwsA(isA<LocationServicesDisabledException>()),
+      );
+    });
+
+    test('Maps NOT_TRACKING to LocationTrackingNotActiveException', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('com.harmonyloop.location_tracker'),
+        (call) async {
+          if (call.method == 'getLocationData') {
+            throw PlatformException(
+              code: 'NOT_TRACKING',
+              message: 'Session stopped',
+            );
+          }
+          return null;
+        },
+      );
+
+      expect(
+        () => methodChannel.getLocationData(),
+        throwsA(isA<LocationTrackingNotActiveException>()),
+      );
+    });
+
+    test('Maps unknown error to base LocationTrackerException', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('com.harmonyloop.location_tracker'),
+        (call) async {
+          if (call.method == 'stopTracking') {
+            throw PlatformException(
+              code: 'GENERIC_ERROR',
+              message: 'Something broke',
+            );
+          }
+          return null;
+        },
+      );
+
+      expect(
+        () => methodChannel.stopTracking(),
+        throwsA(isA<LocationTrackerException>()),
+      );
     });
   });
 }
+

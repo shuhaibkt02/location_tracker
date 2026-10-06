@@ -1,6 +1,10 @@
 /// Represents a security violation or tamper attempt detected during tracking.
 class SecurityAlert {
-  /// The type of alert, e.g. 'MOCK_LOCATION_DETECTED'.
+  static const String mockLocationDetected = 'MOCK_LOCATION_DETECTED';
+  static const String locationDisabled = 'LOCATION_DISABLED';
+  static const String permissionLost = 'PERMISSION_LOST';
+
+  /// The type of alert, e.g. 'MOCK_LOCATION_DETECTED', 'LOCATION_DISABLED', 'PERMISSION_LOST'.
   final String alertType;
 
   /// Timestamp in milliseconds when the alert was triggered.
@@ -14,6 +18,10 @@ class SecurityAlert {
     required this.timestamp,
     this.details = const {},
   });
+
+  bool get isMockLocation => alertType == mockLocationDetected;
+  bool get isLocationDisabled => alertType == locationDisabled;
+  bool get isPermissionLost => alertType == permissionLost;
 
   factory SecurityAlert.fromMap(Map<dynamic, dynamic> map) {
     return SecurityAlert(

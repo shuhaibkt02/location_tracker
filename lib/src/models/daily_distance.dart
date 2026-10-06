@@ -11,6 +11,9 @@ class DailyDistance {
     required this.distanceMeters,
   });
 
+  /// Total accumulated traveling distance in kilometers.
+  double get distanceKm => distanceMeters / 1000.0;
+
   factory DailyDistance.fromMap(Map<dynamic, dynamic> map) {
     return DailyDistance(
       date: map['date'] as String? ?? '',
