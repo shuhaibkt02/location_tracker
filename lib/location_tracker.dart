@@ -2,18 +2,30 @@ library;
 
 export 'location_tracker_platform_interface.dart' show LocationTrackerPlatform;
 export 'src/models/exceptions.dart';
+export 'src/models/location_point.dart';
 export 'src/models/permission_status.dart';
 export 'src/models/tracking_config.dart';
+export 'src/models/tracking_status.dart';
 
 import 'package:location_tracker/location_tracker_platform_interface.dart';
+import 'package:location_tracker/src/models/location_point.dart';
 import 'package:location_tracker/src/models/permission_status.dart';
 import 'package:location_tracker/src/models/tracking_config.dart';
+import 'package:location_tracker/src/models/tracking_status.dart';
 
 class LocationTracker {
   LocationTracker._();
 
   static LocationTrackerPlatform get _platform =>
       LocationTrackerPlatform.instance;
+
+  /// Emits real-time location fixes during active tracking.
+  static Stream<LocationPoint> get onLocationChanged =>
+      _platform.onLocationChanged;
+
+  /// Emits real-time movement and tracking state transitions (STATIONARY, MOVING, PAUSED).
+  static Stream<TrackingStatus> get onStatusChanged =>
+      _platform.onStatusChanged;
 
   static Future<String?> get platformVersion async {
     return _platform.getPlatformVersion();
@@ -54,6 +66,11 @@ class LocationTracker {
   /// Retrieves the accumulated distance traveled today in meters.
   static Future<double> getTotalDistance() async {
     return _platform.getTotalDistance();
+  }
+
+  /// Retrieves the accumulated distance traveled today in meters.
+  static Future<double> getTodayDistance() async {
+    return _platform.getTodayDistance();
   }
 
   /// Updates the foreground notification title dynamically.

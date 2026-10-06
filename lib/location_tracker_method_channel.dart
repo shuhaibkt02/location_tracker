@@ -3,12 +3,14 @@ import 'package:location_tracker/location_tracker_platform_interface.dart';
 import 'package:location_tracker/src/models/exceptions.dart';
 import 'package:location_tracker/src/models/location_point.dart';
 import 'package:location_tracker/src/models/permission_status.dart';
+import 'package:location_tracker/src/models/tracking_status.dart';
 
 class MethodChannelLocationTracker extends LocationTrackerPlatform {
   static const MethodChannel _channel = MethodChannel('location_tracker');
   static const EventChannel _eventChannel = EventChannel('location_tracker/events');
 
   Stream<LocationPoint>? _locationStream;
+  Stream<TrackingStatus>? _statusStream;
 
   @override
   Stream<LocationPoint> get onLocationChanged {
@@ -17,6 +19,16 @@ class MethodChannelLocationTracker extends LocationTrackerPlatform {
         .where((event) => event is Map && event['type'] == 'location')
         .map((event) => LocationPoint.fromMap(event as Map));
     return _locationStream!;
+  }
+
+  @override
+  Stream<TrackingStatus> get onStatusChanged {
+    _statusStream ??= _eventChannel
+        .receiveBroadcastStream()
+        .where((event) => event is Map && event['type'] == 'status')
+        .map((event) =>
+            TrackingStatus.fromString((event as Map)['status'] as String?));
+    return _statusStream!;
   }
 
   @override
