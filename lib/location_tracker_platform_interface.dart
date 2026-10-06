@@ -1,4 +1,5 @@
 import 'package:location_tracker/location_tracker_method_channel.dart';
+import 'package:location_tracker/src/models/daily_distance.dart';
 import 'package:location_tracker/src/models/location_point.dart';
 import 'package:location_tracker/src/models/permission_status.dart';
 import 'package:location_tracker/src/models/tracking_status.dart';
@@ -27,6 +28,10 @@ abstract class LocationTrackerPlatform extends PlatformInterface {
 
   Future<double> getTodayDistance() {
     return getTotalDistance();
+  }
+
+  Future<List<DailyDistance>> getDailyHistory({int days = 7}) {
+    throw UnimplementedError('getDailyHistory() has not been implemented.');
   }
 
   Future<String?> getPlatformVersion() {

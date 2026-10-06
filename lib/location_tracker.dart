@@ -1,6 +1,7 @@
 library;
 
 export 'location_tracker_platform_interface.dart' show LocationTrackerPlatform;
+export 'src/models/daily_distance.dart';
 export 'src/models/exceptions.dart';
 export 'src/models/location_point.dart';
 export 'src/models/permission_status.dart';
@@ -8,6 +9,7 @@ export 'src/models/tracking_config.dart';
 export 'src/models/tracking_status.dart';
 
 import 'package:location_tracker/location_tracker_platform_interface.dart';
+import 'package:location_tracker/src/models/daily_distance.dart';
 import 'package:location_tracker/src/models/location_point.dart';
 import 'package:location_tracker/src/models/permission_status.dart';
 import 'package:location_tracker/src/models/tracking_config.dart';
@@ -71,6 +73,11 @@ class LocationTracker {
   /// Retrieves the accumulated distance traveled today in meters.
   static Future<double> getTodayDistance() async {
     return _platform.getTodayDistance();
+  }
+
+  /// Retrieves the past [days] of recorded daily distances (default: 7 days).
+  static Future<List<DailyDistance>> getDailyHistory({int days = 7}) async {
+    return _platform.getDailyHistory(days: days);
   }
 
   /// Updates the foreground notification title dynamically.

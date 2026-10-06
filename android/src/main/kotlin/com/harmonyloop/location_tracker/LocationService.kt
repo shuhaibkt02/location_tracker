@@ -18,8 +18,7 @@ import com.google.android.gms.location.*
 import android.app.Service.STOP_FOREGROUND_REMOVE
 import android.os.Handler
 import java.util.concurrent.TimeUnit
-import android.app.AlarmManager
-import com.harmonyloop.location_tracker.MidnightStopReceiver
+import java.util.Calendar
 
 class DistanceTrackingService : Service() {
 
@@ -45,6 +44,8 @@ class DistanceTrackingService : Service() {
     // Handler for timeout management
     private val timeoutHandler = Handler(Looper.getMainLooper())
     private var gpsTimeoutRunnable: Runnable? = null
+    private var shiftRolloverRunnable: Runnable? = null
+    private var lastRecordedDate: String = ""
 
     private var notificationTitle: String = "Distance Tracking"
 
@@ -70,36 +71,6 @@ class DistanceTrackingService : Service() {
         private const val LAST_KNOWN_LOCATION_MAX_AGE_MS = 300000L // 5 minutes
         
         private const val WAKE_LOCK_TAG = "DistanceTracker:LocationWakeLock"
-
-        fun scheduleMidnightAlarm(context: Context) {
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            val intent = Intent(context, MidnightStopReceiver::class.java)
-            val pendingIntent = PendingIntent.getBroadcast(
-                context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            val now = System.currentTimeMillis()
-            val calendar = java.util.Calendar.getInstance().apply {
-                timeInMillis = now
-                set(java.util.Calendar.HOUR_OF_DAY, 0)
-                set(java.util.Calendar.MINUTE, 0)
-                set(java.util.Calendar.SECOND, 0)
-                set(java.util.Calendar.MILLISECOND, 0)
-                add(java.util.Calendar.DAY_OF_YEAR, 1)
-            }
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                calendar.timeInMillis,
-                pendingIntent
-            )
-        }
-        fun cancelMidnightAlarm(context: Context) {
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            val intent = Intent(context, MidnightStopReceiver::class.java)
-            val pendingIntent = PendingIntent.getBroadcast(
-                context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            alarmManager.cancel(pendingIntent)
-        }
     }
     
     // Location provider priority enum
@@ -152,6 +123,10 @@ class DistanceTrackingService : Service() {
             val currentDistance = repository.getTotalDistanceToday()
             updateNotification("Ready - Distance: %.2f m".format(currentDistance), true)
             
+            // Step 10: Schedule shift rollover
+            lastRecordedDate = getTodayDateString()
+            scheduleShiftRollover()
+
             LogHelper.log("DistanceTrackingService initialized successfully with distance: %.2f m".format(currentDistance))
             
         } catch (e: Exception) {
@@ -177,6 +152,16 @@ class DistanceTrackingService : Service() {
         }
 
         LogHelper.log("DistanceTrackingService start command received")
+
+        if (intent == null) {
+            LogHelper.log("Service restarted by system (intent == null)")
+            if (CrashProtector.shouldHaltAutoRestart(this)) {
+                LogHelper.logError("Crash circuit breaker tripped: stopping auto-restart")
+                stopSelf()
+                return START_NOT_STICKY
+            }
+        }
+        timeoutHandler.postDelayed({ CrashProtector.markSuccessfulRun(this) }, 10000L)
 
         val currentConfig = ConfigStorage.loadConfig(this)
         intent?.let {
@@ -230,8 +215,8 @@ class DistanceTrackingService : Service() {
             // Stop foreground service
             stopForeground(STOP_FOREGROUND_REMOVE)
             
-            // Cancel midnight alarm when service stops
-            cancelMidnightAlarm(this)
+            // Cancel shift rollover when service stops
+            shiftRolloverRunnable?.let { timeoutHandler.removeCallbacks(it) }
             
             LogHelper.log("DistanceTrackingService destroyed successfully")
         } catch (e: Exception) {
@@ -633,6 +618,13 @@ class DistanceTrackingService : Service() {
      * Enhanced location processing with better filtering
      */
     private fun handleNewLocation(location: Location) {
+        val currentDate = getTodayDateString()
+        if (lastRecordedDate.isNotEmpty() && currentDate != lastRecordedDate) {
+            LogHelper.log("Day rollover detected on location fix: $lastRecordedDate -> $currentDate")
+            lastRecordedDate = currentDate
+            performShiftRollover()
+        }
+
         if (!location.hasAccuracy() || location.accuracy > MAX_LOCATION_ACCURACY_M) {
             LogHelper.log("Location filtered: accuracy=${location.accuracy}m (threshold=${MAX_LOCATION_ACCURACY_M}m)")
             return
@@ -650,11 +642,18 @@ class DistanceTrackingService : Service() {
                 LocationEventBus.emitLocation(it)
                 DistanceStorage.saveTodayDistance(totalDistance)
 
-                val statusText = when {
-                    incrementalDistance > 1.0 -> "Distance: %.2f m (+%.1f m)".format(totalDistance, incrementalDistance)
-                    totalDistance > 0 -> "Distance: %.2f m".format(totalDistance)
-                    else -> "Distance: 0.00 m - ready to track"
+                val config = ConfigStorage.loadConfig(this)
+                val km = totalDistance / 1000.0
+                val formattedDistance = String.format(java.util.Locale.US, "%.2f", km)
+                val statusStr = when (repository.getTrackingStatus()) {
+                    TrackingStatus.MOVING -> "Moving"
+                    TrackingStatus.STATIONARY -> "Stationary"
+                    TrackingStatus.PAUSED -> "Paused"
+                    else -> "Active"
                 }
+                val statusText = config.notificationBodyTemplate
+                    .replace("{distance}", formattedDistance)
+                    .replace("{status}", statusStr)
                 
                 updateNotification(statusText, true)
 
@@ -742,34 +741,64 @@ class DistanceTrackingService : Service() {
         manager.createNotificationChannel(channel)
     }
 
+    private var lastNotificationTime = 0L
+    private var lastNotificationDistance = 0.0
+
     private fun createNotification(
         content: String?,
         showStopButton: Boolean,
         pendingIntent: PendingIntent? = null
     ): Notification {
+        val config = ConfigStorage.loadConfig(this)
+        val iconRes = if (!config.notificationIconResource.isNullOrBlank()) {
+            val resId = resources.getIdentifier(config.notificationIconResource, "drawable", packageName)
+            if (resId != 0) resId else android.R.drawable.ic_menu_mylocation
+        } else {
+            android.R.drawable.ic_menu_mylocation
+        }
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(notificationTitle)
             .setContentText(content ?: "")
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setSmallIcon(iconRes)
             .setOngoing(true)
             .setAutoCancel(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setContentIntent(getAppLaunchIntent())
 
+        getAppLaunchIntent()?.let { builder.setContentIntent(it) }
         pendingIntent?.let { builder.setContentIntent(it) }
+
+        if (config.enableNotificationStopButton && showStopButton) {
+            val stopIntent = Intent(this, DistanceTrackingService::class.java).apply {
+                action = STOP_ACTION
+            }
+            val stopPendingIntent = PendingIntent.getService(
+                this, 1, stopIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
+        }
+
         return builder.build()
     }
 
     private fun updateNotification(
         content: String?,
         showStopButton: Boolean = true,
-        pendingIntent: PendingIntent? = null
+        pendingIntent: PendingIntent? = null,
+        force: Boolean = false
     ) {
         try {
-            val notification = createNotification(content ?: "", showStopButton, pendingIntent)
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.notify(NOTIF_ID, notification)
+            val now = System.currentTimeMillis()
+            val totalDist = if (::repository.isInitialized) repository.getTotalDistanceToday() else 0.0
+            if (force || now - lastNotificationTime >= 3000L || Math.abs(totalDist - lastNotificationDistance) >= 10.0) {
+                lastNotificationTime = now
+                lastNotificationDistance = totalDist
+                val notification = createNotification(content ?: "", showStopButton, pendingIntent)
+                val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                manager.notify(NOTIF_ID, notification)
+            }
         } catch (e: Exception) {
             LogHelper.logError("Error updating notification", e)
         }
@@ -865,6 +894,72 @@ class DistanceTrackingService : Service() {
                     LogHelper.logError("Error releasing WakeLock", e)
                 }
             }
+        }
+    }
+
+    private fun getTodayDateString(): String {
+        val calendar = Calendar.getInstance()
+        return String.format(
+            java.util.Locale.US,
+            "%04d-%02d-%02d",
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH) + 1,
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+    }
+
+    private fun scheduleShiftRollover() {
+        try {
+            shiftRolloverRunnable?.let { timeoutHandler.removeCallbacks(it) }
+
+            val config = ConfigStorage.loadConfig(this)
+            val now = Calendar.getInstance()
+            val target = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, config.autoStopHour)
+                set(Calendar.MINUTE, config.autoStopMinute)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+
+            if (!target.after(now)) {
+                target.add(Calendar.DAY_OF_YEAR, 1)
+            }
+
+            val delayMs = target.timeInMillis - now.timeInMillis
+            LogHelper.log("Scheduling shift rollover for ${target.time} in ${delayMs / 1000} seconds")
+
+            shiftRolloverRunnable = Runnable {
+                performShiftRollover()
+            }
+            timeoutHandler.postDelayed(shiftRolloverRunnable!!, delayMs)
+        } catch (e: Exception) {
+            LogHelper.logError("Error scheduling shift rollover", e)
+        }
+    }
+
+    private fun performShiftRollover() {
+        try {
+            LogHelper.log("=== Performing shift rollover / auto-stop ===")
+            val config = ConfigStorage.loadConfig(this)
+            val currentDistance = repository.getTotalDistanceToday()
+
+            DistanceStorage.saveTodayDistance(currentDistance)
+            DistanceStorage.pruneOldest(7)
+
+            if (config.enableAutoStop) {
+                LogHelper.log("Auto-stop enabled: stopping service after shift end")
+                LocationEventBus.emitStatus(TrackingStatus.STOPPED.name)
+                ConfigStorage.setTrackingActive(this, false)
+                updateNotification("Shift completed - Distance: %.2f km".format(currentDistance / 1000.0), false)
+                stopSelf()
+            } else {
+                LogHelper.log("Shift rollover: resetting daily odometer for continuous tracking")
+                repository.resetDailyData()
+                updateNotification("New shift started - Distance: 0.00 km", true)
+                scheduleShiftRollover()
+            }
+        } catch (e: Exception) {
+            LogHelper.logError("Error performing shift rollover", e)
         }
     }
 }

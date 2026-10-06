@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:location_tracker/location_tracker_platform_interface.dart';
+import 'package:location_tracker/src/models/daily_distance.dart';
 import 'package:location_tracker/src/models/exceptions.dart';
 import 'package:location_tracker/src/models/location_point.dart';
 import 'package:location_tracker/src/models/permission_status.dart';
@@ -135,6 +136,27 @@ class MethodChannelLocationTracker extends LocationTrackerPlatform {
       throw LocationTrackerException(
         code: e.code,
         message: e.message ?? 'Failed to get total distance',
+        details: e.details,
+      );
+    }
+  }
+
+  @override
+  Future<List<DailyDistance>> getDailyHistory({int days = 7}) async {
+    try {
+      final res = await _channel.invokeMethod<List<dynamic>>(
+        'getDailyHistory',
+        {'days': days},
+      );
+      if (res == null) return [];
+      return res
+          .whereType<Map<dynamic, dynamic>>()
+          .map((e) => DailyDistance.fromMap(e))
+          .toList();
+    } on PlatformException catch (e) {
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to get daily history',
         details: e.details,
       );
     }

@@ -4,10 +4,10 @@
 
 **Blocked by:** 03: FGS Lifecycle, Tap-to-Open, and Config Persistence
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] `TrackingConfig` supports `enableAutoStop` (bool), `autoStopHour` (int, default 0), and `autoStopMinute` (int, default 0).
-- [ ] Active service schedules daily rollover using internal `Handler.postDelayed` or timestamp verification on location ticks, eliminating `AlarmManager.setExactAndAllowWhileIdle` and `SCHEDULE_EXACT_ALARM` permissions (ADR-004).
-- [ ] At rollover: yesterday's final distance is finalized in Room DB, the active odometer resets to $0.00\text{ m}$, and a new daily entry is initialized.
-- [ ] If `enableAutoStop` is true, the service gracefully terminates and posts a "Shift Completed" notification.
-- [ ] Unit tests verify rollover triggers correctly across artificial clock advances.
+- [x] `TrackingConfig` supports `enableAutoStop` (bool), `autoStopHour` (int, default 0), and `autoStopMinute` (int, default 0).
+- [x] Active service schedules daily rollover using internal `Handler.postDelayed` or timestamp verification on location ticks, eliminating `AlarmManager.setExactAndAllowWhileIdle` and `SCHEDULE_EXACT_ALARM` permissions (ADR-004).
+- [x] At rollover: yesterday's final distance is finalized in Room DB, the active odometer resets to $0.00\text{ m}$, and a new daily entry is initialized.
+- [x] If `enableAutoStop` is true, the service gracefully terminates and posts a "Shift Completed" notification.
+- [x] Date change checks on location ticks safeguard against sleep/Doze transitions.

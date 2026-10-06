@@ -48,6 +48,12 @@ class LocationTrackerPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, P
         LocationEventBus.setEventSink(null)
       }
     })
+
+    if (ConfigStorage.isTrackingActive(context)) {
+      LogHelper.log("Auto-resuming active tracking session on Flutter attach")
+      LocationRepository.isTracking = true
+      LocationEventBus.emitStatus("RESUMED")
+    }
   }
 
   override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
@@ -185,6 +191,16 @@ class LocationTrackerPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, P
 
       "getTotalDistance", "getDistanceToday" -> {
         result.success(LocationRepository.getDistanceToday())
+      }
+
+      "getDailyHistory" -> {
+        val days = call.argument<Int>("days") ?: 7
+        DistanceStorage.getDailyHistory(days) { list ->
+          val resultList = list.map {
+            mapOf("date" to it.date, "distance" to it.distance)
+          }
+          result.success(resultList)
+        }
       }
 
       "getLocationData", "getLastKnownLocation" -> {
