@@ -68,11 +68,4 @@ class KalmanFilter(
         lng = 0.0
         accuracy = 1.0f
     }
-
-    /**
-     * Allows updating the process noise dynamically.
-     */
-    fun setProcessNoise(newQ: Float) {
-        processNoise = newQ
-    }
 }

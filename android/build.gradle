@@ -19,6 +19,9 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        maven {
+            url "https://storage.googleapis.com/download.flutter.io"
+        }
     }
 }
 
@@ -75,6 +78,10 @@ kapt {
 }
 
 dependencies {
+    def flutterRoot = project.hasProperty('flutter.sdk') ? project.property('flutter.sdk') : (System.getenv('FLUTTER_ROOT') ?: '/Users/shuhaibkt/development/flutter')
+    compileOnly files("$flutterRoot/bin/cache/artifacts/engine/android-arm64/flutter.jar")
+    testImplementation files("$flutterRoot/bin/cache/artifacts/engine/android-arm64/flutter.jar")
+
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-ktx:1.9.3")
@@ -92,6 +99,10 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation("androidx.room:room-testing:2.6.1")
+    testImplementation("org.robolectric:robolectric:4.13")
+    testImplementation("androidx.test:core:1.6.1")
+    testImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation("org.junit.vintage:junit-vintage-engine:5.10.2")
     
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")

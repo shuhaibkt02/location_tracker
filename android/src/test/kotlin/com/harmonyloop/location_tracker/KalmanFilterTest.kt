@@ -1,10 +1,13 @@
 package com.harmonyloop.location_tracker
 
 import android.location.Location
-import kotlin.test.Test
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+@RunWith(RobolectricTestRunner::class)
 class KalmanFilterTest {
 
     @Test
@@ -45,7 +48,7 @@ class KalmanFilterTest {
 
         // The filtered point should converge close to base coordinates
         assertTrue(lastFiltered != null)
-        assertEquals(baseLat, lastFiltered!!.latitude, 0.00005)
+        assertEquals(baseLat, lastFiltered.latitude, 0.00005)
         assertEquals(baseLng, lastFiltered.longitude, 0.00005)
     }
 
