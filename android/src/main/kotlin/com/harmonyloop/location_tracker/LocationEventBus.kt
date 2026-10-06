@@ -5,6 +5,12 @@ import android.os.Handler
 import android.os.Looper
 import io.flutter.plugin.common.EventChannel
 
+data class SecurityAlertEvent(
+    val alertType: SecurityAlertType,
+    val timestamp: Long = System.currentTimeMillis(),
+    val details: Map<String, Any?> = emptyMap()
+)
+
 object LocationEventBus {
     private var eventSink: EventChannel.EventSink? = null
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -28,23 +34,41 @@ object LocationEventBus {
         postToSink(payload)
     }
 
-    fun emitStatus(status: String) {
+    fun emitStatus(status: TrackingStatus) {
         val payload = mapOf(
             "type" to "status",
-            "status" to status,
+            "status" to status.name,
             "timestamp" to System.currentTimeMillis()
         )
         postToSink(payload)
     }
 
-    fun emitSecurityAlert(alertType: String, details: Map<String, Any?> = emptyMap()) {
+    fun emitStatus(status: String) {
+        val typed = try {
+            TrackingStatus.valueOf(status.uppercase())
+        } catch (_: Exception) {
+            TrackingStatus.UNKNOWN
+        }
+        emitStatus(typed)
+    }
+
+    fun emitSecurityAlert(alertType: SecurityAlertType, details: Map<String, Any?> = emptyMap()) {
         val payload = mapOf(
             "type" to "security_alert",
-            "alertType" to alertType,
+            "alertType" to alertType.name,
             "timestamp" to System.currentTimeMillis(),
             "details" to details
         )
         postToSink(payload)
+    }
+
+    fun emitSecurityAlert(alertType: String, details: Map<String, Any?> = emptyMap()) {
+        val typed = try {
+            SecurityAlertType.valueOf(alertType.uppercase())
+        } catch (_: Exception) {
+            SecurityAlertType.UNKNOWN
+        }
+        emitSecurityAlert(typed, details)
     }
 
     private fun postToSink(payload: Map<String, Any?>) {

@@ -3,7 +3,6 @@ package com.harmonyloop.location_tracker
 import android.content.Context
 import androidx.room.*
 import kotlinx.coroutines.*
-import java.util.*
 
 @Entity(tableName = "daily_distance")
 data class DailyDistanceEntity(
@@ -42,33 +41,44 @@ abstract class AppDatabase : RoomDatabase() {
                     "distance_tracker_db"
                 ).build().also { INSTANCE = it }
             }
+
+        fun setInstanceForTesting(database: AppDatabase?) {
+            INSTANCE = database
+        }
     }
 }
 
 object DistanceStorage {
-    private lateinit var dao: DistanceDao
+    private var dao: DistanceDao? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun init(context: Context) {
         dao = AppDatabase.getInstance(context).distanceDao()
     }
 
-    fun saveTodayDistance(distance: Double) {
-        val today = todayDate()
+    fun initWithDao(customDao: DistanceDao) {
+        dao = customDao
+    }
+
+    fun saveDistanceForDate(date: String, distance: Double) {
         scope.launch {
             try {
-                dao.insertOrUpdate(DailyDistanceEntity(today, distance))
+                dao?.insertOrUpdate(DailyDistanceEntity(date, distance))
             } catch (e: Exception) {
-                LogHelper.logError("Error saving daily distance: ${e.message}")
+                LogHelper.logError("Error saving daily distance for date $date: ${e.message}")
             }
         }
     }
 
+    fun saveTodayDistance(distance: Double) {
+        saveDistanceForDate(DateHelper.getFormattedDate(), distance)
+    }
+
     fun loadTodayDistance(onResult: (Double) -> Unit) {
-        val today = todayDate()
+        val today = DateHelper.getFormattedDate()
         scope.launch {
             try {
-                val todayData = dao.getToday(today)
+                val todayData = dao?.getToday(today)
                 withContext(Dispatchers.Main) {
                     onResult(todayData?.distance ?: 0.0)
                 }
@@ -84,7 +94,7 @@ object DistanceStorage {
     fun getDailyHistory(days: Int = 7, onResult: (List<DailyDistanceEntity>) -> Unit) {
         scope.launch {
             try {
-                val list = dao.getHistory(days)
+                val list = dao?.getHistory(days) ?: emptyList()
                 withContext(Dispatchers.Main) {
                     onResult(list)
                 }
@@ -100,21 +110,10 @@ object DistanceStorage {
     fun pruneOldest(daysToKeep: Int = 7) {
         scope.launch {
             try {
-                dao.pruneOldest(daysToKeep)
+                dao?.pruneOldest(daysToKeep)
             } catch (e: Exception) {
                 LogHelper.logError("Error pruning old daily records: ${e.message}")
             }
         }
-    }
-
-    private fun todayDate(): String {
-        val calendar = Calendar.getInstance()
-        return String.format(
-            Locale.US,
-            "%04d-%02d-%02d",
-            calendar.get(Calendar.YEAR),
-            calendar.get(Calendar.MONTH) + 1,
-            calendar.get(Calendar.DAY_OF_MONTH)
-        )
     }
 }

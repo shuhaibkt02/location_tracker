@@ -19,7 +19,50 @@ data class TrackingConfigData(
     val enableNotificationStopButton: Boolean = false,
     val autoResumeOnBoot: Boolean = true,
     val allowMockLocationsInDebug: Boolean = false
-)
+) {
+    fun toMap(): Map<String, Any?> {
+        return mapOf(
+            "notificationTitle" to notificationTitle,
+            "notificationBodyTemplate" to notificationBodyTemplate,
+            "notificationIconResource" to notificationIconResource,
+            "notificationChannelId" to notificationChannelId,
+            "notificationChannelName" to notificationChannelName,
+            "updateIntervalMs" to updateIntervalMs,
+            "minDistanceFilterMeters" to minDistanceFilterMeters,
+            "speedThresholdMps" to speedThresholdMps,
+            "accuracyFilterMeters" to accuracyFilterMeters,
+            "enableAutoStop" to enableAutoStop,
+            "autoStopHour" to autoStopHour,
+            "autoStopMinute" to autoStopMinute,
+            "enableNotificationStopButton" to enableNotificationStopButton,
+            "autoResumeOnBoot" to autoResumeOnBoot,
+            "allowMockLocationsInDebug" to allowMockLocationsInDebug
+        )
+    }
+
+    companion object {
+        fun fromMap(map: Map<String, Any?>?, default: TrackingConfigData = TrackingConfigData()): TrackingConfigData {
+            if (map == null) return default
+            return TrackingConfigData(
+                notificationTitle = map["notificationTitle"] as? String ?: default.notificationTitle,
+                notificationBodyTemplate = map["notificationBodyTemplate"] as? String ?: default.notificationBodyTemplate,
+                notificationIconResource = map["notificationIconResource"] as? String ?: default.notificationIconResource,
+                notificationChannelId = map["notificationChannelId"] as? String ?: default.notificationChannelId,
+                notificationChannelName = map["notificationChannelName"] as? String ?: default.notificationChannelName,
+                updateIntervalMs = (map["updateIntervalMs"] as? Number)?.toLong() ?: default.updateIntervalMs,
+                minDistanceFilterMeters = (map["minDistanceFilterMeters"] as? Number)?.toFloat() ?: default.minDistanceFilterMeters,
+                speedThresholdMps = (map["speedThresholdMps"] as? Number)?.toDouble() ?: default.speedThresholdMps,
+                accuracyFilterMeters = (map["accuracyFilterMeters"] as? Number)?.toFloat() ?: default.accuracyFilterMeters,
+                enableAutoStop = map["enableAutoStop"] as? Boolean ?: default.enableAutoStop,
+                autoStopHour = (map["autoStopHour"] as? Number)?.toInt() ?: default.autoStopHour,
+                autoStopMinute = (map["autoStopMinute"] as? Number)?.toInt() ?: default.autoStopMinute,
+                enableNotificationStopButton = map["enableNotificationStopButton"] as? Boolean ?: default.enableNotificationStopButton,
+                autoResumeOnBoot = map["autoResumeOnBoot"] as? Boolean ?: default.autoResumeOnBoot,
+                allowMockLocationsInDebug = map["allowMockLocationsInDebug"] as? Boolean ?: default.allowMockLocationsInDebug
+            )
+        }
+    }
+}
 
 object ConfigStorage {
     private const val PREFS_NAME = "location_tracker_config"
