@@ -74,4 +74,16 @@ abstract class LocationTrackerPlatform extends PlatformInterface {
   Future<void> updateNotificationTitle(String title) {
     throw UnimplementedError('updateNotificationTitle() has not been implemented.');
   }
+
+  Future<bool> isIgnoringBatteryOptimizations() {
+    throw UnimplementedError('isIgnoringBatteryOptimizations() has not been implemented.');
+  }
+
+  Future<bool> requestIgnoreBatteryOptimizations() {
+    throw UnimplementedError('requestIgnoreBatteryOptimizations() has not been implemented.');
+  }
+
+  Future<bool> openOemBatterySettings() {
+    throw UnimplementedError('openOemBatterySettings() has not been implemented.');
+  }
 }

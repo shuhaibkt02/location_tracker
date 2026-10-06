@@ -185,4 +185,48 @@ class MethodChannelLocationTracker extends LocationTrackerPlatform {
       );
     }
   }
+
+  @override
+  Future<bool> isIgnoringBatteryOptimizations() async {
+    try {
+      final res =
+          await _channel.invokeMethod<bool>('isIgnoringBatteryOptimizations');
+      return res ?? false;
+    } on PlatformException catch (e) {
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to check battery optimization status',
+        details: e.details,
+      );
+    }
+  }
+
+  @override
+  Future<bool> requestIgnoreBatteryOptimizations() async {
+    try {
+      final res =
+          await _channel.invokeMethod<bool>('requestIgnoreBatteryOptimizations');
+      return res ?? false;
+    } on PlatformException catch (e) {
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to request battery optimization ignore',
+        details: e.details,
+      );
+    }
+  }
+
+  @override
+  Future<bool> openOemBatterySettings() async {
+    try {
+      final res = await _channel.invokeMethod<bool>('openOemBatterySettings');
+      return res ?? false;
+    } on PlatformException catch (e) {
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to open OEM battery settings',
+        details: e.details,
+      );
+    }
+  }
 }

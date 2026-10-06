@@ -241,6 +241,18 @@ class LocationTrackerPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, P
         result.success(LogHelper.getLogs())
       }
 
+      "isIgnoringBatteryOptimizations" -> {
+        result.success(OemBatteryHelper.isIgnoringBatteryOptimizations(context))
+      }
+
+      "requestIgnoreBatteryOptimizations" -> {
+        result.success(OemBatteryHelper.requestIgnoreBatteryOptimizations(context, activity))
+      }
+
+      "openOemBatterySettings" -> {
+        result.success(OemBatteryHelper.openOemBatterySettings(context, activity))
+      }
+
       "updateNotificationTitle" -> {
         val title = call.argument<String>("title")
         if (title != null) {

@@ -90,4 +90,19 @@ class LocationTracker {
   static Future<void> updateNotificationTitle(String title) async {
     return _platform.updateNotificationTitle(title);
   }
+
+  /// Checks whether the application is exempt from Android battery optimizations.
+  static Future<bool> isIgnoringBatteryOptimizations() async {
+    return _platform.isIgnoringBatteryOptimizations();
+  }
+
+  /// Prompts the system dialog requesting battery optimization exemption.
+  static Future<bool> requestIgnoreBatteryOptimizations() async {
+    return _platform.requestIgnoreBatteryOptimizations();
+  }
+
+  /// Opens manufacturer-specific autostart or background battery managers (Xiaomi, Samsung, Oppo, Vivo, Huawei).
+  static Future<bool> openOemBatterySettings() async {
+    return _platform.openOemBatterySettings();
+  }
 }

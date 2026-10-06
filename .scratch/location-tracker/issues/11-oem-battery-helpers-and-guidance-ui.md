@@ -4,10 +4,10 @@
 
 **Blocked by:** 01: Baseline Package & Gradle Sanitization (Prefactor)
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] Dart API `LocationTracker.isIgnoringBatteryOptimizations()` returns boolean battery optimization status via `PowerManager.isIgnoringBatteryOptimizations()`.
-- [ ] Dart API `LocationTracker.requestIgnoreBatteryOptimizations()` launches system dialog via `Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`.
-- [ ] Dart API `LocationTracker.openOemBatterySettings()` launches manufacturer-specific autostart or background managers on Xiaomi (MIUI/HyperOS), Samsung (One UI), Oppo (ColorOS), Vivo (Funtouch), and Huawei (EMUI).
-- [ ] Dart API returns `bool` indicating whether the OEM settings intent successfully resolved and opened.
-- [ ] Falls back cleanly to general Android App Details settings if OEM-specific intent fails.
+- [x] Dart API `LocationTracker.isIgnoringBatteryOptimizations()` returns boolean battery optimization status via `PowerManager.isIgnoringBatteryOptimizations()`.
+- [x] Dart API `LocationTracker.requestIgnoreBatteryOptimizations()` launches system dialog via `Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`.
+- [x] Dart API `LocationTracker.openOemBatterySettings()` launches manufacturer-specific autostart or background managers on Xiaomi (MIUI/HyperOS), Samsung (One UI), Oppo (ColorOS), Vivo (Funtouch), and Huawei (EMUI).
+- [x] Dart API returns `bool` indicating whether the OEM settings intent successfully resolved and opened.
+- [x] Falls back cleanly to general Android App Details settings if OEM-specific intent fails.
