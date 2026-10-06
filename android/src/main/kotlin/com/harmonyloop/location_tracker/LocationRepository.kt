@@ -12,6 +12,7 @@ class LocationRepository(private val context: Context) {
     private var trackingStatus = TrackingStatus.STATIONARY
     private var stationaryTime: Long = 0L
     private val STATIONARY_THRESHOLD_MS = 180000L // 3 minutes
+    internal var isDebugMode: Boolean = BuildConfig.DEBUG
 
     companion object {
         private const val OUTLIER_DISTANCE_M = 1000.0 // Ignore single jumps > 1 km
@@ -34,25 +35,27 @@ class LocationRepository(private val context: Context) {
 
     init {
         setInstance(this)
+        isTracking = ConfigStorage.isTrackingActive(context)
         loadTodayDistanceFromStorage()
-        LogHelper.log("LocationRepository initialized with distance: %.2f m".format(totalDistanceToday))
+        LogHelper.log("LocationRepository initialized with distance: %.2f m, isTracking: $isTracking".format(totalDistanceToday))
     }
 
     fun processLocation(rawLocation: Location): Pair<Location?, Double> {
         val config = ConfigStorage.loadConfig(context)
 
-        // Detect mock locations (ADR-008, Ticket 10)
+        // Detect mock locations (ADR-008, Ticket 10 & Ticket 21)
         if (LocationCompat.isMock(rawLocation)) {
-            if (!config.allowMockLocationsInDebug) {
-                LogHelper.log("Mock location detected and rejected.")
-                LocationEventBus.emitSecurityAlert("MOCK_LOCATION_DETECTED", mapOf(
+            val isAllowed = isDebugMode && config.allowMockLocationsInDebug
+            if (!isAllowed) {
+                LogHelper.log("Mock location detected and rejected (isDebugMode=$isDebugMode, allowMockLocationsInDebug=${config.allowMockLocationsInDebug}).")
+                LocationEventBus.emitSecurityAlert(SecurityAlertType.MOCK_LOCATION_DETECTED, mapOf(
                     "provider" to (rawLocation.provider ?: "unknown"),
                     "timestamp" to rawLocation.time,
                     "accuracy" to rawLocation.accuracy.toDouble()
                 ))
                 return Pair(null, totalDistanceToday)
             } else {
-                LogHelper.log("Mock location detected but permitted by allowMockLocationsInDebug configuration.")
+                LogHelper.log("Mock location detected but permitted by debug configuration.")
             }
         }
 

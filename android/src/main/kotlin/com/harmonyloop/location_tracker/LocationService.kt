@@ -47,14 +47,25 @@ class DistanceTrackingService : Service() {
     private var gpsTimeoutRunnable: Runnable? = null
     private var shiftRolloverRunnable: Runnable? = null
     private var lastRecordedDate: String = ""
+    private var isIntentionalStop: Boolean = false
+    private var isProviderReceiverRegistered: Boolean = false
+
+    private val providerReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == LocationManager.PROVIDERS_CHANGED_ACTION) {
+                checkLocationProviderState()
+                checkPermissionsMidShift()
+            }
+        }
+    }
 
     private var notificationTitle: String = "Distance Tracking"
 
     companion object {
         private const val NOTIF_ID = 101
         private const val CHANNEL_ID = "distance_tracker"
-        private const val STOP_ACTION = "STOP_TRACKING"
-        private const val STOP_FROM_MIDNIGHT_ACTION = "STOP_FROM_MIDNIGHT"
+        const val STOP_ACTION = "STOP_TRACKING"
+        const val STOP_FROM_MIDNIGHT_ACTION = "STOP_FROM_MIDNIGHT"
         private const val LOCATION_SETTINGS_REQUEST = 1001
         private const val MAX_LOCATION_ACCURACY_M = 50.0f
         
@@ -128,6 +139,11 @@ class DistanceTrackingService : Service() {
             lastRecordedDate = getTodayDateString()
             scheduleShiftRollover()
 
+            // Step 11: Register provider change receiver for security alert detection
+            val filter = android.content.IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION)
+            registerReceiver(providerReceiver, filter)
+            isProviderReceiverRegistered = true
+
             LogHelper.log("DistanceTrackingService initialized successfully with distance: %.2f m".format(currentDistance))
             
         } catch (e: Exception) {
@@ -140,6 +156,7 @@ class DistanceTrackingService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == STOP_ACTION || intent?.action == STOP_FROM_MIDNIGHT_ACTION) {
             LogHelper.log("Stop action received from notification or midnight alarm")
+            isIntentionalStop = true
             stopSelf()
             return START_NOT_STICKY
         }
@@ -197,9 +214,20 @@ class DistanceTrackingService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         try {
-            LogHelper.log("=== DistanceTrackingService shutdown started ===")
-            ConfigStorage.setTrackingActive(this, false)
-            LocationRepository.isTracking = false
+            LogHelper.log("=== DistanceTrackingService shutdown started (intentional=$isIntentionalStop) ===")
+            if (isIntentionalStop) {
+                ConfigStorage.setTrackingActive(this, false)
+                LocationRepository.isTracking = false
+            } else {
+                LogHelper.log("OS teardown / task swipe: preserving is_tracking_active=true for auto-resume")
+            }
+
+            if (isProviderReceiverRegistered) {
+                try {
+                    unregisterReceiver(providerReceiver)
+                } catch (_: Exception) {}
+                isProviderReceiverRegistered = false
+            }
             
             // Cancel any pending timeouts
             gpsTimeoutRunnable?.let { timeoutHandler.removeCallbacks(it) }
@@ -619,11 +647,16 @@ class DistanceTrackingService : Service() {
      * Enhanced location processing with better filtering
      */
     private fun handleNewLocation(location: Location) {
+        if (!checkPermissionsMidShift()) {
+            return
+        }
+
         val currentDate = getTodayDateString()
         if (lastRecordedDate.isNotEmpty() && currentDate != lastRecordedDate) {
             LogHelper.log("Day rollover detected on location fix: $lastRecordedDate -> $currentDate")
+            val previousDate = lastRecordedDate
             lastRecordedDate = currentDate
-            performShiftRollover()
+            performShiftRollover(previousDate)
         }
 
         if (!location.hasAccuracy() || location.accuracy > MAX_LOCATION_ACCURACY_M) {
@@ -899,14 +932,7 @@ class DistanceTrackingService : Service() {
     }
 
     private fun getTodayDateString(): String {
-        val calendar = Calendar.getInstance()
-        return String.format(
-            java.util.Locale.US,
-            "%04d-%02d-%02d",
-            calendar.get(Calendar.YEAR),
-            calendar.get(Calendar.MONTH) + 1,
-            calendar.get(Calendar.DAY_OF_MONTH)
-        )
+        return DateHelper.getFormattedDate()
     }
 
     private fun scheduleShiftRollover() {
@@ -938,29 +964,58 @@ class DistanceTrackingService : Service() {
         }
     }
 
-    private fun performShiftRollover() {
+    internal fun performShiftRollover(dateToArchive: String? = null) {
         try {
             LogHelper.log("=== Performing shift rollover / auto-stop ===")
             val config = ConfigStorage.loadConfig(this)
             val currentDistance = repository.getTotalDistanceToday()
+            val todayDate = DateHelper.getFormattedDate()
+            val archiveDate = dateToArchive ?: (if (lastRecordedDate.isNotEmpty() && lastRecordedDate != todayDate) lastRecordedDate else DateHelper.getYesterdayDate())
 
-            DistanceStorage.saveTodayDistance(currentDistance)
+            LogHelper.log("Archiving odometer ($currentDistance m) under date: $archiveDate")
+            DistanceStorage.saveDistanceForDate(archiveDate, currentDistance)
+            DistanceStorage.saveDistanceForDate(todayDate, 0.0)
             DistanceStorage.pruneOldest(7)
 
             if (config.enableAutoStop) {
                 LogHelper.log("Auto-stop enabled: stopping service after shift end")
-                LocationEventBus.emitStatus(TrackingStatus.STOPPED.name)
+                isIntentionalStop = true
+                LocationEventBus.emitStatus(TrackingStatus.STOPPED)
                 ConfigStorage.setTrackingActive(this, false)
+                LocationRepository.isTracking = false
                 updateNotification("Shift completed - Distance: %.2f km".format(currentDistance / 1000.0), false)
                 stopSelf()
             } else {
                 LogHelper.log("Shift rollover: resetting daily odometer for continuous tracking")
                 repository.resetDailyData()
+                lastRecordedDate = todayDate
                 updateNotification("New shift started - Distance: 0.00 km", true)
                 scheduleShiftRollover()
             }
         } catch (e: Exception) {
             LogHelper.logError("Error performing shift rollover", e)
         }
+    }
+
+    internal fun checkLocationProviderState() {
+        val locationManager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return
+        val gpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        val networkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        if (!gpsEnabled && !networkEnabled) {
+            LogHelper.log("Location services disabled mid-tracking")
+            LocationEventBus.emitSecurityAlert(SecurityAlertType.LOCATION_DISABLED, mapOf("reason" to "GPS and Network providers disabled"))
+            updateNotification("Location services disabled", false, createLocationSettingsIntent())
+        }
+    }
+
+    internal fun checkPermissionsMidShift(): Boolean {
+        if (!hasAllRequiredPermissions()) {
+            LogHelper.log("Permissions lost mid-shift")
+            LocationEventBus.emitSecurityAlert(SecurityAlertType.PERMISSION_LOST, mapOf("reason" to "Location or notification permission revoked"))
+            LocationEventBus.emitStatus(TrackingStatus.PERMISSION_REVOKED)
+            updateNotification("Location permissions required", false, createAppSettingsIntent())
+            return false
+        }
+        return true
     }
 }

@@ -114,17 +114,21 @@
 
 ### ADR-008: Mock Location Discard & Fraud Detection Audit
 
-* **Status:** Accepted
+* **Status:** Accepted (Hardened via Ticket 21)
 * **Context:**
-  Sales reps in the field may attempt to use mock location provider apps (Fake GPS) to fabricate client visits or claim fraudulent travel allowances.
+  Sales reps in the field may attempt to use mock location provider apps (Fake GPS) to fabricate client visits or claim fraudulent travel allowances. However, during local Flutter development on Android emulators and CI/CD QA automation, engineers must be able to inject simulated coordinates without the entire pipeline rejecting them.
 * **Decision:**
-  On every incoming coordinate update, check `LocationCompat.isMock(location)`. If detected:
-  1. Immediately discard the point from distance accumulation.
-  2. Emit a `SecurityAlert` event (`type: "MOCK_LOCATION_DETECTED"`, timestamp, provider) over the Flutter `EventChannel`.
-  3. Log an audit entry so the host application can record the incident and report it to backend compliance/HR.
+  On every incoming coordinate update, check `LocationCompat.isMock(location)`.
+  1. **Strict Debug-Only Carve-Out:** Mock location acceptance requires **both** `BuildConfig.DEBUG == true` **and** `config.allowMockLocationsInDebug == true`.
+  2. **Release Build Hardening:** In release builds (`BuildConfig.DEBUG == false`), mock locations are **unconditionally discarded**, odometer accumulation is rejected, and a `MOCK_LOCATION_DETECTED` security alert is emitted—even if a malicious caller attempts to set `allowMockLocationsInDebug: true`.
+  3. When an unauthorized mock location is detected:
+     - Discard the fix immediately from distance accumulation.
+     - Dispatch a `SecurityAlert` event (`type: "MOCK_LOCATION_DETECTED"`, timestamp, provider) over the Flutter `EventChannel`.
+     - Log an audit entry so the host application can record the incident and report it to backend compliance/HR.
 * **Consequences:**
-  - **Positive:** Protects business travel claims from mileage fraud; provides real-time anti-tampering signals.
-  - **Negative:** Automated testing using mock GPS coordinates requires a debug configuration toggle or emulator test mode.
+  - **Positive:** Closes the anti-tamper security hole in production while preserving emulator testability and developer velocity in debug mode.
+  - **Negative:** Production testing must use physical GPS motion or valid field runs.
+
 
 ---
 

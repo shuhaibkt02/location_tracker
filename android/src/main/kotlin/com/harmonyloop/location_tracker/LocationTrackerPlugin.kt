@@ -34,11 +34,11 @@ class LocationTrackerPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, P
 
   override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
     context = flutterPluginBinding.applicationContext
-    channel = MethodChannel(flutterPluginBinding.binaryMessenger, "location_tracker")
+    channel = MethodChannel(flutterPluginBinding.binaryMessenger, "com.harmonyloop.location_tracker")
     channel.setMethodCallHandler(this)
     DistanceStorage.init(context)
 
-    eventChannel = io.flutter.plugin.common.EventChannel(flutterPluginBinding.binaryMessenger, "location_tracker/events")
+    eventChannel = io.flutter.plugin.common.EventChannel(flutterPluginBinding.binaryMessenger, "com.harmonyloop.location_tracker/events")
     eventChannel.setStreamHandler(object : io.flutter.plugin.common.EventChannel.StreamHandler {
       override fun onListen(arguments: Any?, events: io.flutter.plugin.common.EventChannel.EventSink?) {
         LocationEventBus.setEventSink(events)
@@ -52,7 +52,13 @@ class LocationTrackerPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, P
     if (ConfigStorage.isTrackingActive(context)) {
       LogHelper.log("Auto-resuming active tracking session on Flutter attach")
       LocationRepository.isTracking = true
-      LocationEventBus.emitStatus("RESUMED")
+      LocationEventBus.emitStatus(TrackingStatus.RESUMED)
+      val intent = Intent(context, DistanceTrackingService::class.java)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        context.startForegroundService(intent)
+      } else {
+        context.startService(intent)
+      }
     }
   }
 
@@ -159,23 +165,7 @@ class LocationTrackerPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, P
           @Suppress("UNCHECKED_CAST")
           val configMap = call.arguments as Map<String, Any?>
           val current = ConfigStorage.loadConfig(context)
-          val parsedConfig = current.copy(
-            notificationTitle = configMap["notificationTitle"] as? String ?: current.notificationTitle,
-            notificationBodyTemplate = configMap["notificationBodyTemplate"] as? String ?: current.notificationBodyTemplate,
-            notificationIconResource = configMap["notificationIconResource"] as? String ?: current.notificationIconResource,
-            notificationChannelId = configMap["notificationChannelId"] as? String ?: current.notificationChannelId,
-            notificationChannelName = configMap["notificationChannelName"] as? String ?: current.notificationChannelName,
-            updateIntervalMs = (configMap["updateIntervalMs"] as? Number)?.toLong() ?: current.updateIntervalMs,
-            minDistanceFilterMeters = (configMap["minDistanceFilterMeters"] as? Number)?.toFloat() ?: current.minDistanceFilterMeters,
-            speedThresholdMps = (configMap["speedThresholdMps"] as? Number)?.toDouble() ?: current.speedThresholdMps,
-            accuracyFilterMeters = (configMap["accuracyFilterMeters"] as? Number)?.toFloat() ?: current.accuracyFilterMeters,
-            enableAutoStop = configMap["enableAutoStop"] as? Boolean ?: current.enableAutoStop,
-            autoStopHour = (configMap["autoStopHour"] as? Number)?.toInt() ?: current.autoStopHour,
-            autoStopMinute = (configMap["autoStopMinute"] as? Number)?.toInt() ?: current.autoStopMinute,
-            enableNotificationStopButton = configMap["enableNotificationStopButton"] as? Boolean ?: current.enableNotificationStopButton,
-            autoResumeOnBoot = configMap["autoResumeOnBoot"] as? Boolean ?: current.autoResumeOnBoot,
-            allowMockLocationsInDebug = configMap["allowMockLocationsInDebug"] as? Boolean ?: current.allowMockLocationsInDebug
-          )
+          val parsedConfig = TrackingConfigData.fromMap(configMap, current)
           ConfigStorage.saveConfig(context, parsedConfig)
 
           for ((k, v) in configMap) {
@@ -200,8 +190,10 @@ class LocationTrackerPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, P
       "stopTracking" -> {
         ConfigStorage.setTrackingActive(context, false)
         LocationRepository.isTracking = false
-        val intent = Intent(context, DistanceTrackingService::class.java)
-        context.stopService(intent)
+        val intent = Intent(context, DistanceTrackingService::class.java).apply {
+          action = DistanceTrackingService.STOP_ACTION
+        }
+        context.startService(intent)
         result.success(true)
       }
 
@@ -210,7 +202,14 @@ class LocationTrackerPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, P
       }
 
       "getTotalDistance", "getDistanceToday" -> {
-        result.success(LocationRepository.getDistanceToday())
+        val memoryDistance = LocationRepository.getDistanceToday()
+        if (memoryDistance > 0.0) {
+          result.success(memoryDistance)
+        } else {
+          DistanceStorage.loadTodayDistance { dbDistance ->
+            result.success(dbDistance)
+          }
+        }
       }
 
       "getDailyHistory" -> {
