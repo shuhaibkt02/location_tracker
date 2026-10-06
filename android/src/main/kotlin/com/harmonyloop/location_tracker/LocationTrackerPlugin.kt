@@ -1,9 +1,14 @@
 package com.harmonyloop.location_tracker
 
+import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.annotation.NonNull
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -11,70 +16,178 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
-import com.example.distance_tracker.LogHelper
-import com.example.distance_tracker.DistanceStorage
+import io.flutter.plugin.common.PluginRegistry
 
-
-/** DistanceTrackerPlugin */
-class DistanceTrackerPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
+/** LocationTrackerPlugin */
+class LocationTrackerPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegistry.RequestPermissionsResultListener {
 
   private lateinit var channel: MethodChannel
+  private lateinit var eventChannel: io.flutter.plugin.common.EventChannel
   private lateinit var context: Context
+  private var activity: Activity? = null
   private var activityBinding: ActivityPluginBinding? = null
+  private var pendingPermissionResult: Result? = null
+
+  companion object {
+    private const val PERMISSION_REQUEST_CODE = 9012
+  }
 
   override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
     context = flutterPluginBinding.applicationContext
-    channel = MethodChannel(flutterPluginBinding.binaryMessenger, "distance_tracker")
+    channel = MethodChannel(flutterPluginBinding.binaryMessenger, "location_tracker")
     channel.setMethodCallHandler(this)
     DistanceStorage.init(context)
+
+    eventChannel = io.flutter.plugin.common.EventChannel(flutterPluginBinding.binaryMessenger, "location_tracker/events")
+    eventChannel.setStreamHandler(object : io.flutter.plugin.common.EventChannel.StreamHandler {
+      override fun onListen(arguments: Any?, events: io.flutter.plugin.common.EventChannel.EventSink?) {
+        LocationEventBus.setEventSink(events)
+      }
+
+      override fun onCancel(arguments: Any?) {
+        LocationEventBus.setEventSink(null)
+      }
+    })
   }
 
   override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
     channel.setMethodCallHandler(null)
+    eventChannel.setStreamHandler(null)
+    LocationEventBus.setEventSink(null)
   }
 
   override fun onAttachedToActivity(binding: ActivityPluginBinding) {
+    activity = binding.activity
     activityBinding = binding
+    binding.addRequestPermissionsResultListener(this)
   }
+
   override fun onDetachedFromActivity() {
+    activityBinding?.removeRequestPermissionsResultListener(this)
+    activity = null
     activityBinding = null
   }
-  override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {}
-  override fun onDetachedFromActivityForConfigChanges() {}
+
+  override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
+    onAttachedToActivity(binding)
+  }
+
+  override fun onDetachedFromActivityForConfigChanges() {
+    onDetachedFromActivity()
+  }
+
+  override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray): Boolean {
+    if (requestCode == PERMISSION_REQUEST_CODE) {
+      pendingPermissionResult?.success(getPermissionMap())
+      pendingPermissionResult = null
+      return true
+    }
+    return false
+  }
+
+  private fun getPermissionMap(): Map<String, Boolean> {
+    val fineGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    val coarseGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    val notifGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    } else {
+      true
+    }
+    val hasAll = fineGranted && notifGranted
+    return mapOf(
+      "locationGranted" to (fineGranted || coarseGranted),
+      "notificationGranted" to notifGranted,
+      "isFineLocation" to fineGranted,
+      "hasAllRequired" to hasAll
+    )
+  }
 
   override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: Result) {
     when (call.method) {
-      "startTracking" -> {
-        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-          val intent = Intent(context, DistanceTrackingService::class.java)
-          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-              context.startForegroundService(intent)
-          } else {
-              context.startService(intent)
-          }
-          result.success(true)
-      } else {
-          result.error("PERMISSION_DENIED", "Location permission not granted", null)
+      "getPlatformVersion" -> {
+        result.success("Android " + Build.VERSION.RELEASE)
       }
+
+      "checkPermissions" -> {
+        result.success(getPermissionMap())
+      }
+
+      "requestPermissions" -> {
+        val perms = getPermissionMap()
+        if (perms["hasAllRequired"] == true || activity == null) {
+          result.success(perms)
+          return
+        }
+
+        val needed = mutableListOf<String>()
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+          needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
+          needed.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+          needed.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        if (needed.isEmpty()) {
+          result.success(getPermissionMap())
+        } else {
+          pendingPermissionResult = result
+          ActivityCompat.requestPermissions(activity!!, needed.toTypedArray(), PERMISSION_REQUEST_CODE)
+        }
+      }
+
+      "startTracking" -> {
+        val perms = getPermissionMap()
+        if (perms["hasAllRequired"] != true) {
+          result.error(
+            "PERMISSION_DENIED",
+            "Required location and notification permissions must be granted before starting tracking.",
+            perms
+          )
+          return
+        }
+
+        val intent = Intent(context, DistanceTrackingService::class.java)
+        if (call.arguments is Map<*, *>) {
+          @Suppress("UNCHECKED_CAST")
+          val configMap = call.arguments as Map<String, Any?>
+          for ((k, v) in configMap) {
+            when (v) {
+              is String -> intent.putExtra(k, v)
+              is Int -> intent.putExtra(k, v)
+              is Long -> intent.putExtra(k, v)
+              is Double -> intent.putExtra(k, v)
+              is Boolean -> intent.putExtra(k, v)
+            }
+          }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          context.startForegroundService(intent)
+        } else {
+          context.startService(intent)
+        }
+        result.success(true)
       }
 
       "stopTracking" -> {
+        ConfigStorage.setTrackingActive(context, false)
+        LocationRepository.isTracking = false
         val intent = Intent(context, DistanceTrackingService::class.java)
         context.stopService(intent)
         result.success(true)
       }
 
       "isTracking" -> {
-        result.success(LocationRepository.isTracking)
+        result.success(ConfigStorage.isTrackingActive(context) || LocationRepository.isTracking)
       }
 
-      "getDistanceToday" -> {
+      "getTotalDistance", "getDistanceToday" -> {
         result.success(LocationRepository.getDistanceToday())
       }
 
-      "getLastKnownLocation" -> {
+      "getLocationData", "getLastKnownLocation" -> {
         val location = LocationRepository.getLastKnownLocation()
         if (location != null) {
           result.success(mapOf(
@@ -92,20 +205,21 @@ class DistanceTrackerPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         result.success(LogHelper.getLogs())
       }
 
-      else -> result.notImplemented()
-    }
-    if (call.method == "updateNotificationTitle") {
-      val title = call.argument<String>("title")
-      if (title != null) {
-        val intent = Intent(context, DistanceTrackingService::class.java)
-        intent.action = "UPDATE_NOTIFICATION_TITLE"
-        intent.putExtra("title", title)
-        context.startService(intent)
-        result.success(true)
-      } else {
-        result.error("INVALID_ARGUMENT", "Title is required", null)
+      "updateNotificationTitle" -> {
+        val title = call.argument<String>("title")
+        if (title != null) {
+          val intent = Intent(context, DistanceTrackingService::class.java).apply {
+            action = "UPDATE_NOTIFICATION_TITLE"
+            putExtra("title", title)
+          }
+          context.startService(intent)
+          result.success(true)
+        } else {
+          result.error("INVALID_ARGUMENT", "Title is required", null)
+        }
       }
-      return
+
+      else -> result.notImplemented()
     }
   }
 }

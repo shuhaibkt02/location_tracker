@@ -1,4 +1,6 @@
 import 'package:location_tracker/location_tracker_method_channel.dart';
+import 'package:location_tracker/src/models/location_point.dart';
+import 'package:location_tracker/src/models/permission_status.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 abstract class LocationTrackerPlatform extends PlatformInterface {
@@ -14,10 +16,43 @@ abstract class LocationTrackerPlatform extends PlatformInterface {
     _instance = instance;
   }
 
-  Future<String?> getPlatformVersion();
-  Future<void> startTracking();
-  Future<void> stopTracking();
-  Future<Map<String, dynamic>?> getLocationData();
-  Future<double> getTotalDistance();
-  Future<void> updateNotificationTitle(String title);
+  Stream<LocationPoint> get onLocationChanged {
+    throw UnimplementedError('onLocationChanged has not been implemented.');
+  }
+
+  Future<String?> getPlatformVersion() {
+    throw UnimplementedError('getPlatformVersion() has not been implemented.');
+  }
+
+  Future<LocationPermissionStatus> checkPermissions() {
+    throw UnimplementedError('checkPermissions() has not been implemented.');
+  }
+
+  Future<LocationPermissionStatus> requestPermissions() {
+    throw UnimplementedError('requestPermissions() has not been implemented.');
+  }
+
+  Future<void> startTracking([Map<String, dynamic>? config]) {
+    throw UnimplementedError('startTracking() has not been implemented.');
+  }
+
+  Future<void> stopTracking() {
+    throw UnimplementedError('stopTracking() has not been implemented.');
+  }
+
+  Future<bool> isTracking() {
+    throw UnimplementedError('isTracking() has not been implemented.');
+  }
+
+  Future<Map<String, dynamic>?> getLocationData() {
+    throw UnimplementedError('getLocationData() has not been implemented.');
+  }
+
+  Future<double> getTotalDistance() {
+    throw UnimplementedError('getTotalDistance() has not been implemented.');
+  }
+
+  Future<void> updateNotificationTitle(String title) {
+    throw UnimplementedError('updateNotificationTitle() has not been implemented.');
+  }
 }

@@ -1,20 +1,75 @@
 import 'package:flutter/services.dart';
 import 'package:location_tracker/location_tracker_platform_interface.dart';
+import 'package:location_tracker/src/models/exceptions.dart';
+import 'package:location_tracker/src/models/location_point.dart';
+import 'package:location_tracker/src/models/permission_status.dart';
 
 class MethodChannelLocationTracker extends LocationTrackerPlatform {
   static const MethodChannel _channel = MethodChannel('location_tracker');
+  static const EventChannel _eventChannel = EventChannel('location_tracker/events');
+
+  Stream<LocationPoint>? _locationStream;
 
   @override
-  Future<String?> getPlatformVersion() async {
-    return _channel.invokeMethod<String>('getPlatformVersion');
+  Stream<LocationPoint> get onLocationChanged {
+    _locationStream ??= _eventChannel
+        .receiveBroadcastStream()
+        .where((event) => event is Map && event['type'] == 'location')
+        .map((event) => LocationPoint.fromMap(event as Map));
+    return _locationStream!;
   }
 
   @override
-  Future<void> startTracking() async {
+  Future<String?> getPlatformVersion() async {
     try {
-      await _channel.invokeMethod('startTracking');
+      return await _channel.invokeMethod<String>('getPlatformVersion');
     } on PlatformException catch (e) {
-      throw 'Failed to start tracking: ${e.message}';
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to get platform version',
+        details: e.details,
+      );
+    }
+  }
+
+  @override
+  Future<LocationPermissionStatus> checkPermissions() async {
+    try {
+      final res = await _channel.invokeMethod<Map<dynamic, dynamic>>('checkPermissions');
+      return LocationPermissionStatus.fromMap(res ?? {});
+    } on PlatformException catch (e) {
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to check permissions',
+        details: e.details,
+      );
+    }
+  }
+
+  @override
+  Future<LocationPermissionStatus> requestPermissions() async {
+    try {
+      final res = await _channel.invokeMethod<Map<dynamic, dynamic>>('requestPermissions');
+      return LocationPermissionStatus.fromMap(res ?? {});
+    } on PlatformException catch (e) {
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to request permissions',
+        details: e.details,
+      );
+    }
+  }
+
+  @override
+  Future<void> startTracking([Map<String, dynamic>? config]) async {
+    try {
+      await _channel.invokeMethod('startTracking', config);
+    } on PlatformException catch (e) {
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to start tracking',
+        details: e.details,
+      );
     }
   }
 
@@ -23,7 +78,25 @@ class MethodChannelLocationTracker extends LocationTrackerPlatform {
     try {
       await _channel.invokeMethod('stopTracking');
     } on PlatformException catch (e) {
-      throw 'Failed to stop tracking: ${e.message}';
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to stop tracking',
+        details: e.details,
+      );
+    }
+  }
+
+  @override
+  Future<bool> isTracking() async {
+    try {
+      final res = await _channel.invokeMethod<bool>('isTracking');
+      return res ?? false;
+    } on PlatformException catch (e) {
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to check tracking state',
+        details: e.details,
+      );
     }
   }
 
@@ -33,7 +106,11 @@ class MethodChannelLocationTracker extends LocationTrackerPlatform {
       final data = await _channel.invokeMethod('getLocationData');
       return data != null ? Map<String, dynamic>.from(data) : null;
     } on PlatformException catch (e) {
-      throw 'Failed to get location data: ${e.message}';
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to get location data',
+        details: e.details,
+      );
     }
   }
 
@@ -41,9 +118,13 @@ class MethodChannelLocationTracker extends LocationTrackerPlatform {
   Future<double> getTotalDistance() async {
     try {
       final distance = await _channel.invokeMethod('getTotalDistance');
-      return (distance as num).toDouble();
+      return distance != null ? (distance as num).toDouble() : 0.0;
     } on PlatformException catch (e) {
-      throw 'Failed to get total distance: ${e.message}';
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to get total distance',
+        details: e.details,
+      );
     }
   }
 
@@ -52,7 +133,11 @@ class MethodChannelLocationTracker extends LocationTrackerPlatform {
     try {
       await _channel.invokeMethod('updateNotificationTitle', {'title': title});
     } on PlatformException catch (e) {
-      throw 'Failed to update notification title: ${e.message}';
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to update notification title',
+        details: e.details,
+      );
     }
   }
 }

@@ -126,7 +126,17 @@ class DistanceTrackingService : Service() {
             repository = LocationRepository(this)
 
             // Step 5: Start foreground notification
-            startForeground(NOTIF_ID, createNotification("Initializing location services...", false))
+            val initialNotif = createNotification("Initializing location services...", false)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                androidx.core.app.ServiceCompat.startForeground(
+                    this,
+                    NOTIF_ID,
+                    initialNotif,
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0
+                )
+            } else {
+                startForeground(NOTIF_ID, initialNotif)
+            }
 
             // Step 6: Diagnose location services availability
             val diagnostics = diagnoseLocationServices()
@@ -167,6 +177,26 @@ class DistanceTrackingService : Service() {
         }
 
         LogHelper.log("DistanceTrackingService start command received")
+
+        val currentConfig = ConfigStorage.loadConfig(this)
+        intent?.let {
+            val title = it.getStringExtra("notificationTitle")
+            val template = it.getStringExtra("notificationBodyTemplate")
+            val icon = it.getStringExtra("notificationIconResource")
+            val interval = it.getLongExtra("updateIntervalMs", -1L)
+            if (title != null || interval > 0) {
+                val updated = currentConfig.copy(
+                    notificationTitle = title ?: currentConfig.notificationTitle,
+                    notificationBodyTemplate = template ?: currentConfig.notificationBodyTemplate,
+                    notificationIconResource = icon ?: currentConfig.notificationIconResource,
+                    updateIntervalMs = if (interval > 0) interval else currentConfig.updateIntervalMs
+                )
+                ConfigStorage.saveConfig(this, updated)
+                notificationTitle = updated.notificationTitle
+            }
+        }
+        ConfigStorage.setTrackingActive(this, true)
+        LocationRepository.isTracking = true
         
         if (hasAllRequiredPermissions()) {
             startLocationTracking()
@@ -182,6 +212,8 @@ class DistanceTrackingService : Service() {
         super.onDestroy()
         try {
             LogHelper.log("=== DistanceTrackingService shutdown started ===")
+            ConfigStorage.setTrackingActive(this, false)
+            LocationRepository.isTracking = false
             
             // Cancel any pending timeouts
             gpsTimeoutRunnable?.let { timeoutHandler.removeCallbacks(it) }
@@ -282,6 +314,15 @@ class DistanceTrackingService : Service() {
     private fun setupLocationCallback() {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
+                if (!hasAllRequiredPermissions()) {
+                    LogHelper.logError("Permissions revoked mid-tracking session!")
+                    updateNotification("Tracking paused: Location permission required", false, createAppSettingsIntent())
+                    val intent = Intent("com.harmonyloop.location_tracker.PERMISSION_REVOKED").apply {
+                        setPackage(packageName)
+                    }
+                    sendBroadcast(intent)
+                    return
+                }
                 result.lastLocation?.let { location ->
                     try {
                         handleLocationSuccess(location)
@@ -606,6 +647,7 @@ class DistanceTrackingService : Service() {
 
         filteredLocation?.let {
             try {
+                LocationEventBus.emitLocation(it)
                 DistanceStorage.saveTodayDistance(totalDistance)
 
                 val statusText = when {
@@ -762,7 +804,8 @@ class DistanceTrackingService : Service() {
     }
 
     private fun broadcastLocationAvailability(isAvailable: Boolean) {
-        val intent = Intent("com.example.distance_tracker.LOCATION_AVAILABILITY").apply {
+        val intent = Intent("com.harmonyloop.location_tracker.LOCATION_AVAILABILITY").apply {
+            setPackage(packageName)
             putExtra("isAvailable", isAvailable)
             putExtra("provider", currentLocationProvider.name)
             putExtra("consecutiveFailures", consecutiveLocationFailures)

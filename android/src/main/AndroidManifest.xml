@@ -3,29 +3,26 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    
     <uses-permission android:name="android.permission.INTERNET" />
-    
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="false"
         android:fullBackupContent="false">
         <service
-            android:name="com.example.distance_tracker.DistanceTrackingService"
+            android:name="com.harmonyloop.location_tracker.DistanceTrackingService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="location"
             android:stopWithTask="false" />
-        <receiver android:name=".kotlin.com.harmonyloop.location_tracker.MidnightStopReceiver" android:exported="false" />
+        <receiver
+            android:name="com.harmonyloop.location_tracker.MidnightStopReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

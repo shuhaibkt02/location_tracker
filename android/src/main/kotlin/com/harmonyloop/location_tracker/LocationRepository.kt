@@ -4,9 +4,6 @@ import android.content.Context
 import android.location.Location
 import androidx.core.location.LocationCompat
 import kotlin.math.*
-import com.example.distance_tracker.KalmanFilter
-import com.example.distance_tracker.DistanceStorage
-import com.example.distance_tracker.TrackingStatus
 
 class LocationRepository(private val context: Context) {
 

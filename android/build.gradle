@@ -1,4 +1,4 @@
-group = "com.example.distance_tracker"
+group = "com.harmonyloop.location_tracker"
 version = "1.0-SNAPSHOT"
 
 buildscript {
@@ -11,7 +11,7 @@ buildscript {
     dependencies {
         classpath("com.android.tools.build:gradle:8.7.0")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version")
-        classpath("androidx.room:room-gradle-plugin:2.6.1") // Optional, not strictly needed
+        classpath("androidx.room:room-gradle-plugin:2.6.1")
     }
 }
 
@@ -19,12 +19,6 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        maven {
-            url "${System.env.HOME}/Tools/flutter_linux_3.29.2-stable/.android/Flutter"
-        }
-        maven {
-            url "https://storage.googleapis.com/download.flutter.io"
-        }
     }
 }
 
@@ -33,7 +27,7 @@ apply plugin: "kotlin-android"
 apply plugin: "kotlin-kapt"
 
 android {
-    namespace = "com.example.distance_tracker"
+    namespace = "com.harmonyloop.location_tracker"
     compileSdk = 35
 
     defaultConfig {
@@ -82,7 +76,6 @@ kapt {
 
 dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
-    implementation("com.google.android.gms:play-services-maps:18.2.0")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-ktx:1.9.3")
     implementation("androidx.room:room-runtime:2.6.1")
@@ -93,7 +86,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-service:2.8.6")
     implementation("androidx.lifecycle:lifecycle-process:2.8.6")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
-    implementation("androidx.activity:activity-compose:1.9.3")
     
     testImplementation("org.jetbrains.kotlin:kotlin-test")
     testImplementation("org.mockito:mockito-core:5.14.2")
