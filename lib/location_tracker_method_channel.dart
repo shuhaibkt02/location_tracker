@@ -5,6 +5,7 @@ import 'package:location_tracker/src/models/exceptions.dart';
 import 'package:location_tracker/src/models/location_point.dart';
 import 'package:location_tracker/src/models/permission_status.dart';
 import 'package:location_tracker/src/models/security_alert.dart';
+import 'package:location_tracker/src/models/service_diagnostics.dart';
 import 'package:location_tracker/src/models/tracking_status.dart';
 
 class MethodChannelLocationTracker extends LocationTrackerPlatform {
@@ -225,6 +226,62 @@ class MethodChannelLocationTracker extends LocationTrackerPlatform {
       throw LocationTrackerException(
         code: e.code,
         message: e.message ?? 'Failed to open OEM battery settings',
+        details: e.details,
+      );
+    }
+  }
+
+  @override
+  Future<List<String>> getLogs() async {
+    try {
+      final res = await _channel.invokeMethod<List<dynamic>>('getLogs');
+      return res?.map((e) => e.toString()).toList() ?? [];
+    } on PlatformException catch (e) {
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to get logs',
+        details: e.details,
+      );
+    }
+  }
+
+  @override
+  Future<String?> exportLogsToFile() async {
+    try {
+      return await _channel.invokeMethod<String>('exportLogsToFile');
+    } on PlatformException catch (e) {
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to export logs',
+        details: e.details,
+      );
+    }
+  }
+
+  @override
+  Future<bool> clearLogs() async {
+    try {
+      final res = await _channel.invokeMethod<bool>('clearLogs');
+      return res ?? false;
+    } on PlatformException catch (e) {
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to clear logs',
+        details: e.details,
+      );
+    }
+  }
+
+  @override
+  Future<ServiceDiagnostics> getServiceDiagnostics() async {
+    try {
+      final res = await _channel
+          .invokeMethod<Map<dynamic, dynamic>>('getServiceDiagnostics');
+      return ServiceDiagnostics.fromMap(res ?? {});
+    } on PlatformException catch (e) {
+      throw LocationTrackerException(
+        code: e.code,
+        message: e.message ?? 'Failed to get service diagnostics',
         details: e.details,
       );
     }

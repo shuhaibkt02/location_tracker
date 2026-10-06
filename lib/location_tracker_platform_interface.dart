@@ -6,6 +6,8 @@ import 'package:location_tracker/src/models/security_alert.dart';
 import 'package:location_tracker/src/models/tracking_status.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
+import 'package:location_tracker/src/models/service_diagnostics.dart';
+
 abstract class LocationTrackerPlatform extends PlatformInterface {
   LocationTrackerPlatform() : super(token: _token);
 
@@ -85,5 +87,21 @@ abstract class LocationTrackerPlatform extends PlatformInterface {
 
   Future<bool> openOemBatterySettings() {
     throw UnimplementedError('openOemBatterySettings() has not been implemented.');
+  }
+
+  Future<List<String>> getLogs() {
+    throw UnimplementedError('getLogs() has not been implemented.');
+  }
+
+  Future<String?> exportLogsToFile() {
+    throw UnimplementedError('exportLogsToFile() has not been implemented.');
+  }
+
+  Future<bool> clearLogs() {
+    throw UnimplementedError('clearLogs() has not been implemented.');
+  }
+
+  Future<ServiceDiagnostics> getServiceDiagnostics() {
+    throw UnimplementedError('getServiceDiagnostics() has not been implemented.');
   }
 }

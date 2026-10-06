@@ -241,6 +241,39 @@ class LocationTrackerPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, P
         result.success(LogHelper.getLogs())
       }
 
+      "exportLogsToFile" -> {
+        val path = LogHelper.exportLogsToFile(context)
+        result.success(path)
+      }
+
+      "clearLogs" -> {
+        LogHelper.clearLogs()
+        result.success(true)
+      }
+
+      "getServiceDiagnostics" -> {
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? android.location.LocationManager
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+        val lastLocation = LocationRepository.getLastKnownLocation()
+        val fixAgeMs = if (lastLocation != null) System.currentTimeMillis() - lastLocation.time else -1L
+
+        val diag = mapOf(
+          "isTracking" to (LocationRepository.isTracking || ConfigStorage.isTrackingActive(context)),
+          "gpsEnabled" to (locationManager?.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) ?: false),
+          "networkEnabled" to (locationManager?.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER) ?: false),
+          "isIgnoringBatteryOptimizations" to OemBatteryHelper.isIgnoringBatteryOptimizations(context),
+          "isDeviceIdleMode" to if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) powerManager?.isDeviceIdleMode ?: false else false,
+          "isPowerSaveMode" to (powerManager?.isPowerSaveMode ?: false),
+          "hasLastKnownLocation" to (lastLocation != null),
+          "lastLocationAgeMs" to fixAgeMs,
+          "lastLocationAccuracy" to (lastLocation?.accuracy?.toDouble() ?: -1.0),
+          "lastLocationSpeed" to (lastLocation?.speed?.toDouble() ?: -1.0),
+          "trackingStatus" to (LocationRepository.getInstance()?.getTrackingStatus()?.name ?: "UNKNOWN"),
+          "totalDistanceToday" to LocationRepository.getDistanceToday()
+        )
+        result.success(diag)
+      }
+
       "isIgnoringBatteryOptimizations" -> {
         result.success(OemBatteryHelper.isIgnoringBatteryOptimizations(context))
       }

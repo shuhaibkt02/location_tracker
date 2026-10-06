@@ -4,10 +4,10 @@
 
 **Blocked by:** 01: Baseline Package & Gradle Sanitization (Prefactor)
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] `LogHelper` maintains an in-memory ring buffer (up to 1,000 entries) with thread-safe formatting.
-- [ ] Production logs redact granular GPS coordinates (logs speed, accuracy, delta distance, provider status, but omits raw latitude/longitude for employee privacy and GDPR compliance).
-- [ ] Dart API `LocationTracker.getLogs()` returns chronological log entries.
-- [ ] Dart API `LocationTracker.exportLogsToFile()` writes formatted diagnostics to external app storage and returns the file path.
-- [ ] Dart API `LocationTracker.getServiceDiagnostics()` returns active provider, GPS availability, battery state, and last location fix age.
+- [x] `LogHelper` maintains an in-memory ring buffer (up to 1,000 entries) with thread-safe formatting.
+- [x] Production logs redact granular GPS coordinates (logs speed, accuracy, delta distance, provider status, but omits raw latitude/longitude for employee privacy and GDPR compliance).
+- [x] Dart API `LocationTracker.getLogs()` returns chronological log entries.
+- [x] Dart API `LocationTracker.exportLogsToFile()` writes formatted diagnostics to external app storage and returns the file path.
+- [x] Dart API `LocationTracker.getServiceDiagnostics()` returns active provider, GPS availability, battery state, and last location fix age.

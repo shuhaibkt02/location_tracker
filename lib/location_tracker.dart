@@ -6,6 +6,7 @@ export 'src/models/exceptions.dart';
 export 'src/models/location_point.dart';
 export 'src/models/permission_status.dart';
 export 'src/models/security_alert.dart';
+export 'src/models/service_diagnostics.dart';
 export 'src/models/tracking_config.dart';
 export 'src/models/tracking_status.dart';
 
@@ -14,6 +15,7 @@ import 'package:location_tracker/src/models/daily_distance.dart';
 import 'package:location_tracker/src/models/location_point.dart';
 import 'package:location_tracker/src/models/permission_status.dart';
 import 'package:location_tracker/src/models/security_alert.dart';
+import 'package:location_tracker/src/models/service_diagnostics.dart';
 import 'package:location_tracker/src/models/tracking_config.dart';
 import 'package:location_tracker/src/models/tracking_status.dart';
 
@@ -104,5 +106,25 @@ class LocationTracker {
   /// Opens manufacturer-specific autostart or background battery managers (Xiaomi, Samsung, Oppo, Vivo, Huawei).
   static Future<bool> openOemBatterySettings() async {
     return _platform.openOemBatterySettings();
+  }
+
+  /// Retrieves chronological in-memory log entries (up to 1,000 entries) with redacted coordinates.
+  static Future<List<String>> getLogs() async {
+    return _platform.getLogs();
+  }
+
+  /// Writes all collected logs to external storage file and returns the file path.
+  static Future<String?> exportLogsToFile() async {
+    return _platform.exportLogsToFile();
+  }
+
+  /// Clears the in-memory circular log buffer.
+  static Future<bool> clearLogs() async {
+    return _platform.clearLogs();
+  }
+
+  /// Retrieves comprehensive service health and location provider diagnostics.
+  static Future<ServiceDiagnostics> getServiceDiagnostics() async {
+    return _platform.getServiceDiagnostics();
   }
 }

@@ -13,10 +13,16 @@ object LogHelper {
 
     private val logList = CopyOnWriteArrayList<String>()
     private val dateFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+    private val coordPattern = Regex("""(-?\d{1,3}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})""")
+
+    private fun sanitize(message: String): String {
+        return coordPattern.replace(message, "[REDACTED_COORDS]")
+    }
 
     fun log(message: String) {
+        val sanitized = sanitize(message)
         val timestamp = dateFormat.format(Date())
-        val entry = "[$timestamp] $message"
+        val entry = "[$timestamp] $sanitized"
 
         Log.d(TAG, entry)
         logList.add(entry)
@@ -27,8 +33,9 @@ object LogHelper {
     }
 
     fun logError(message: String, throwable: Throwable? = null) {
+        val sanitized = sanitize(message)
         val timestamp = dateFormat.format(Date())
-        val entry = "[$timestamp] ❌ ERROR: $message"
+        val entry = "[$timestamp] ❌ ERROR: $sanitized"
 
         Log.e(TAG, entry, throwable)
         logList.add(entry)
