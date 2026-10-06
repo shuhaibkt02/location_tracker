@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Shared date utility `DateHelper.getFormattedDate(...)` provides standard ISO `yyyy-MM-dd` date strings, eliminating duplicate implementations in `localDatabase.kt` and `LocationService.kt`.
-- [ ] At midnight rollover, yesterday's cumulative odometer reading is explicitly saved to Room DB using yesterday's calendar date rather than today's date.
-- [ ] The active odometer in `LocationRepository` resets to $0.00\text{ m}$ for the new day, and today's initial record is initialized at $0.00\text{ m}$.
-- [ ] If continuous tracking is enabled (`enableAutoStop == false`), new location fixes arriving after midnight accumulate only into today's odometer.
+- [x] Shared date utility `DateHelper.getFormattedDate(...)` provides standard ISO `yyyy-MM-dd` date strings, eliminating duplicate implementations in `localDatabase.kt` and `LocationService.kt`.
+- [x] At midnight rollover, yesterday's cumulative odometer reading is explicitly saved to Room DB using yesterday's calendar date rather than today's date.
+- [x] The active odometer in `LocationRepository` resets to $0.00\text{ m}$ for the new day, and today's initial record is initialized at $0.00\text{ m}$.
+- [x] If continuous tracking is enabled (`enableAutoStop == false`), new location fixes arriving after midnight accumulate only into today's odometer.

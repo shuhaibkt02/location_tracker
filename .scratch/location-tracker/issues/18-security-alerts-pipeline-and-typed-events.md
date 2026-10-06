@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] `LocationEventBus` uses typed enums/data classes (`SecurityAlertType`, `TrackingStatus`) rather than unvalidated raw strings and unstructured maps.
-- [ ] If system location services (GPS/Network) are disabled mid-tracking, the service detects the provider shutdown and emits a `LOCATION_DISABLED` alert on the event stream.
-- [ ] If runtime location or notification permissions are revoked mid-shift, the service detects the revocation, notifies the user via status bar warning, and emits a `PERMISSION_LOST` security alert over the event channel.
-- [ ] Dart API `SecurityAlert` parses `alertType` cleanly for all three variants: `MOCK_LOCATION_DETECTED`, `LOCATION_DISABLED`, and `PERMISSION_LOST`.
+- [x] `LocationEventBus` uses typed enums/data classes (`SecurityAlertType`, `TrackingStatus`) rather than unvalidated raw strings and unstructured maps.
+- [x] If system location services (GPS/Network) are disabled mid-tracking, the service detects the provider shutdown and emits a `LOCATION_DISABLED` alert on the event stream.
+- [x] If runtime location or notification permissions are revoked mid-shift, the service detects the revocation, notifies the user via status bar warning, and emits a `PERMISSION_LOST` security alert over the event channel.
+- [x] Dart API `SecurityAlert` parses `alertType` cleanly for all three variants: `MOCK_LOCATION_DETECTED`, `LOCATION_DISABLED`, and `PERMISSION_LOST`.

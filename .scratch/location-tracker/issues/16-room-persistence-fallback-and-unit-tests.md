@@ -4,11 +4,11 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] File `localDatabase.kt` is renamed to PascalCase `LocalDatabase.kt` in accordance with Kotlin coding standards.
-- [ ] `getTodayDistance` / `getTotalDistance` method channel handlers query Room database directly when the in-memory singleton is uninitialized or reads $0.0\text{ m}$.
-- [ ] In-memory Room database unit tests (`Room.inMemoryDatabaseBuilder`) verify:
+- [x] File `localDatabase.kt` is renamed to PascalCase `LocalDatabase.kt` in accordance with Kotlin coding standards.
+- [x] `getTodayDistance` / `getTotalDistance` method channel handlers query Room database directly when the in-memory singleton is uninitialized or reads $0.0\text{ m}$.
+- [x] In-memory Room database unit tests (`Room.inMemoryDatabaseBuilder`) verify:
   - Inserting and updating today's distance replaces existing records without race conditions.
   - Querying today's record returns accurate distance.
   - Querying history returns correctly ordered records up to the requested limit.

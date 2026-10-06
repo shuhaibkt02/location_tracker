@@ -26,7 +26,7 @@ class DistanceTrackingService : Service() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationRequest: LocationRequest
     private lateinit var locationCallback: LocationCallback
-    private lateinit var repository: LocationRepository
+    internal lateinit var repository: LocationRepository
     private var lastLocation: Location? = null
     private var isBackgroundMode = false
     
@@ -242,7 +242,12 @@ class DistanceTrackingService : Service() {
             releaseWakeLock()
             
             // Stop foreground service
-            stopForeground(STOP_FOREGROUND_REMOVE)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
             
             // Cancel shift rollover when service stops
             shiftRolloverRunnable?.let { timeoutHandler.removeCallbacks(it) }
@@ -760,19 +765,21 @@ class DistanceTrackingService : Service() {
 
     // Notification and utility methods remain the same but with enhanced error handling
     private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Distance Tracker",
-            NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = "Shows current distance tracking status"
-            setShowBadge(false)
-            enableLights(false)
-            enableVibration(false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Distance Tracker",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Shows current distance tracking status"
+                setShowBadge(false)
+                enableLights(false)
+                enableVibration(false)
+            }
+            
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
         }
-        
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.createNotificationChannel(channel)
     }
 
     private var lastNotificationTime = 0L

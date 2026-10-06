@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] In `LocationRepository.kt`, mock location acceptance requires BOTH `BuildConfig.DEBUG` and `config.allowMockLocationsInDebug == true`. Release builds unconditionally reject mock locations regardless of configuration flags.
-- [ ] If a mock location is detected in a release build, the fix is immediately discarded, odometer accumulation is rejected, and a `MOCK_LOCATION_DETECTED` security alert is dispatched.
-- [ ] ADR-008 documentation in `docs/ADR.md` is updated to formally specify the debug-only carve-out for emulator testing and QA automation.
-- [ ] JVM unit tests verify that mock location fixes are rejected when `BuildConfig.DEBUG` is false, and allowed only when explicitly enabled in debug mode.
+- [x] In `LocationRepository.kt`, mock location acceptance requires BOTH `BuildConfig.DEBUG` and `config.allowMockLocationsInDebug == true`. Release builds unconditionally reject mock locations regardless of configuration flags.
+- [x] If a mock location is detected in a release build, the fix is immediately discarded, odometer accumulation is rejected, and a `MOCK_LOCATION_DETECTED` security alert is dispatched.
+- [x] ADR-008 documentation in `docs/ADR.md` is updated to formally specify the debug-only carve-out for emulator testing and QA automation.
+- [x] JVM unit tests verify that mock location fixes are rejected when `BuildConfig.DEBUG` is false, and allowed only when explicitly enabled in debug mode.

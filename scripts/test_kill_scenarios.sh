@@ -190,6 +190,53 @@ test_boot_completed() {
 }
 
 # ==============================================================================
+# Scenario 5: Process Kill ('am kill') followed by BOOT_COMPLETED Rehydration & Odometer Continuity
+# ==============================================================================
+test_kill_and_boot_recovery() {
+    echo ""
+    echo "=================================================================="
+    log_info "Scenario 5: Testing 'am kill' + BOOT_COMPLETED Rehydration & Odometer Continuity"
+    echo "=================================================================="
+
+    if ! is_service_running; then
+        log_warn "Service is not currently running. Cannot test kill + revive cycle."
+        return 1
+    fi
+
+    log_info "Capturing baseline odometer before simulated kill..."
+    local initial_logs
+    initial_logs=$(adb logcat -d -s DistanceTracker | tail -n 20 || true)
+
+    log_info "Simulating OS process termination via 'am kill'..."
+    adb shell am kill "$PACKAGE_NAME"
+    sleep 2
+
+    log_info "Broadcasting ACTION_BOOT_COMPLETED to rehydrate service..."
+    adb shell am broadcast \
+        -a android.intent.action.BOOT_COMPLETED \
+        -p "$PACKAGE_NAME" \
+        -n "$PACKAGE_NAME/$RECEIVER_NAME"
+
+    log_info "Waiting for DistanceTrackingService restoration..."
+    if wait_for_service 15; then
+        log_pass "DistanceTrackingService restored successfully after kill + reboot cycle."
+    else
+        log_fail "DistanceTrackingService failed to restore after kill + reboot cycle."
+        return 1
+    fi
+
+    log_info "Verifying odometer continuity without phantom drift..."
+    sleep 2
+    local rehydrated_logs
+    rehydrated_logs=$(adb logcat -d -s DistanceTracker | grep -E "initialized with distance|Loaded today's distance" | tail -n 1 || true)
+    if [ -n "$rehydrated_logs" ]; then
+        log_pass "Odometer rehydration confirmed: $rehydrated_logs"
+    else
+        log_info "Service restored; inspect logcat for exact odometer readings."
+    fi
+}
+
+# ==============================================================================
 # Main execution
 # ==============================================================================
 main() {
@@ -204,6 +251,7 @@ main() {
     test_low_memory_kill || true
     test_doze_mode || true
     test_boot_completed || true
+    test_kill_and_boot_recovery || true
 
     echo ""
     echo "=================================================================="

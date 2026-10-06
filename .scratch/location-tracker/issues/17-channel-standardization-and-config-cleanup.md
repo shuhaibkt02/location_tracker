@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] MethodChannel identifier is updated to `com.harmonyloop.location_tracker` across Dart and Kotlin implementations.
-- [ ] EventChannel identifier is updated to `com.harmonyloop.location_tracker/events` across Dart and Kotlin implementations.
-- [ ] `TrackingConfigData.fromMap(map: Map<String, Any?>)` encapsulates configuration dictionary unpacking, eliminating Feature Envy in `LocationTrackerPlugin.kt`.
-- [ ] Unused method `setProcessNoise` in `KalmanFilter.kt` is removed.
-- [ ] Unit tests verify configuration serialization and deserialization with default fallbacks.
+- [x] MethodChannel identifier is updated to `com.harmonyloop.location_tracker` across Dart and Kotlin implementations.
+- [x] EventChannel identifier is updated to `com.harmonyloop.location_tracker/events` across Dart and Kotlin implementations.
+- [x] `TrackingConfigData.fromMap(map: Map<String, Any?>)` encapsulates configuration dictionary unpacking, eliminating Feature Envy in `LocationTrackerPlugin.kt`.
+- [x] Unused method `setProcessNoise` in `KalmanFilter.kt` is removed.
+- [x] Unit tests verify configuration serialization and deserialization with default fallbacks.

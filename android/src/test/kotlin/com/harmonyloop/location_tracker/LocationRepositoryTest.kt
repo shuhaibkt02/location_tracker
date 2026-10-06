@@ -3,6 +3,7 @@ package com.harmonyloop.location_tracker
 import android.content.Context
 import android.location.Location
 import android.os.Build
+import androidx.core.location.LocationCompat
 import androidx.test.core.app.ApplicationProvider
 import io.flutter.plugin.common.EventChannel
 import org.junit.After
@@ -54,10 +55,7 @@ class LocationRepositoryTest {
             this.longitude = longitude
             this.accuracy = 5.0f
             this.time = System.currentTimeMillis()
-            this.setIsFromMockProvider(isMock)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                this.isMock = isMock
-            }
+            LocationCompat.setMock(this, isMock)
         }
     }
 

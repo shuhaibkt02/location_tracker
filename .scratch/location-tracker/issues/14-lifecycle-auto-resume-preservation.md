@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] `DistanceTrackingService.onDestroy()` distinguishes between intentional stops (via `stopTracking()` / auto-stop) and OS teardown (process kill / low memory), ensuring `ConfigStorage.setTrackingActive(false)` is only invoked on intentional teardown.
-- [ ] `LocationRepository.isTracking` lifecycle state mirrors persistent tracking status across process recreation.
-- [ ] Swiping away the host app leaves `is_tracking_active == true` in persistent storage.
-- [ ] Launching the host app when `is_tracking_active == true` automatically re-establishes foreground tracking without requiring the user to re-start manually (ADR-006).
+- [x] `DistanceTrackingService.onDestroy()` distinguishes between intentional stops (via `stopTracking()` / auto-stop) and OS teardown (process kill / low memory), ensuring `ConfigStorage.setTrackingActive(false)` is only invoked on intentional teardown.
+- [x] `LocationRepository.isTracking` lifecycle state mirrors persistent tracking status across process recreation.
+- [x] Swiping away the host app leaves `is_tracking_active == true` in persistent storage.
+- [x] Launching the host app when `is_tracking_active == true` automatically re-establishes foreground tracking without requiring the user to re-start manually (ADR-006).
