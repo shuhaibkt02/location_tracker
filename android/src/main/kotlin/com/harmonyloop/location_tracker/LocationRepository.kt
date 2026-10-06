@@ -39,17 +39,22 @@ class LocationRepository(private val context: Context) {
     }
 
     fun processLocation(rawLocation: Location): Pair<Location?, Double> {
-        // Detect mock locations (handled in detail in Ticket 10)
-        if (LocationCompat.isMock(rawLocation)) {
-            LogHelper.log("Mock location detected and rejected.")
-            LocationEventBus.emitSecurityAlert("MOCK_LOCATION_DETECTED", mapOf(
-                "provider" to (rawLocation.provider ?: "unknown"),
-                "timestamp" to rawLocation.time
-            ))
-            return Pair(null, totalDistanceToday)
-        }
-
         val config = ConfigStorage.loadConfig(context)
+
+        // Detect mock locations (ADR-008, Ticket 10)
+        if (LocationCompat.isMock(rawLocation)) {
+            if (!config.allowMockLocationsInDebug) {
+                LogHelper.log("Mock location detected and rejected.")
+                LocationEventBus.emitSecurityAlert("MOCK_LOCATION_DETECTED", mapOf(
+                    "provider" to (rawLocation.provider ?: "unknown"),
+                    "timestamp" to rawLocation.time,
+                    "accuracy" to rawLocation.accuracy.toDouble()
+                ))
+                return Pair(null, totalDistanceToday)
+            } else {
+                LogHelper.log("Mock location detected but permitted by allowMockLocationsInDebug configuration.")
+            }
+        }
 
         // Filter out inaccurate fixes
         if (rawLocation.hasAccuracy() && rawLocation.accuracy > config.accuracyFilterMeters) {

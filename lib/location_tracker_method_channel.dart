@@ -4,6 +4,7 @@ import 'package:location_tracker/src/models/daily_distance.dart';
 import 'package:location_tracker/src/models/exceptions.dart';
 import 'package:location_tracker/src/models/location_point.dart';
 import 'package:location_tracker/src/models/permission_status.dart';
+import 'package:location_tracker/src/models/security_alert.dart';
 import 'package:location_tracker/src/models/tracking_status.dart';
 
 class MethodChannelLocationTracker extends LocationTrackerPlatform {
@@ -12,6 +13,7 @@ class MethodChannelLocationTracker extends LocationTrackerPlatform {
 
   Stream<LocationPoint>? _locationStream;
   Stream<TrackingStatus>? _statusStream;
+  Stream<SecurityAlert>? _securityAlertStream;
 
   @override
   Stream<LocationPoint> get onLocationChanged {
@@ -30,6 +32,15 @@ class MethodChannelLocationTracker extends LocationTrackerPlatform {
         .map((event) =>
             TrackingStatus.fromString((event as Map)['status'] as String?));
     return _statusStream!;
+  }
+
+  @override
+  Stream<SecurityAlert> get onSecurityAlert {
+    _securityAlertStream ??= _eventChannel
+        .receiveBroadcastStream()
+        .where((event) => event is Map && event['type'] == 'security_alert')
+        .map((event) => SecurityAlert.fromMap(event as Map));
+    return _securityAlertStream!;
   }
 
   @override

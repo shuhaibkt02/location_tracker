@@ -42,6 +42,9 @@ class TrackingConfig {
   /// Whether to auto-resume active shift tracking across device reboots.
   final bool autoResumeOnBoot;
 
+  /// Whether to permit mock/simulated GPS fixes during debug/development (default false for security).
+  final bool allowMockLocationsInDebug;
+
   const TrackingConfig({
     this.notificationTitle = 'Workforce Tracking',
     this.notificationBodyTemplate = 'Distance: {distance} km • {status}',
@@ -57,6 +60,7 @@ class TrackingConfig {
     this.autoStopMinute = 0,
     this.enableNotificationStopButton = false,
     this.autoResumeOnBoot = true,
+    this.allowMockLocationsInDebug = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -75,6 +79,7 @@ class TrackingConfig {
       'autoStopMinute': autoStopMinute,
       'enableNotificationStopButton': enableNotificationStopButton,
       'autoResumeOnBoot': autoResumeOnBoot,
+      'allowMockLocationsInDebug': allowMockLocationsInDebug,
     };
   }
 
@@ -102,6 +107,8 @@ class TrackingConfig {
       enableNotificationStopButton:
           map['enableNotificationStopButton'] as bool? ?? false,
       autoResumeOnBoot: map['autoResumeOnBoot'] as bool? ?? true,
+      allowMockLocationsInDebug:
+          map['allowMockLocationsInDebug'] as bool? ?? false,
     );
   }
 }

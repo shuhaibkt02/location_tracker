@@ -2,6 +2,7 @@ import 'package:location_tracker/location_tracker_method_channel.dart';
 import 'package:location_tracker/src/models/daily_distance.dart';
 import 'package:location_tracker/src/models/location_point.dart';
 import 'package:location_tracker/src/models/permission_status.dart';
+import 'package:location_tracker/src/models/security_alert.dart';
 import 'package:location_tracker/src/models/tracking_status.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
@@ -24,6 +25,10 @@ abstract class LocationTrackerPlatform extends PlatformInterface {
 
   Stream<TrackingStatus> get onStatusChanged {
     throw UnimplementedError('onStatusChanged has not been implemented.');
+  }
+
+  Stream<SecurityAlert> get onSecurityAlert {
+    throw UnimplementedError('onSecurityAlert has not been implemented.');
   }
 
   Future<double> getTodayDistance() {

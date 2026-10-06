@@ -5,6 +5,7 @@ export 'src/models/daily_distance.dart';
 export 'src/models/exceptions.dart';
 export 'src/models/location_point.dart';
 export 'src/models/permission_status.dart';
+export 'src/models/security_alert.dart';
 export 'src/models/tracking_config.dart';
 export 'src/models/tracking_status.dart';
 
@@ -12,6 +13,7 @@ import 'package:location_tracker/location_tracker_platform_interface.dart';
 import 'package:location_tracker/src/models/daily_distance.dart';
 import 'package:location_tracker/src/models/location_point.dart';
 import 'package:location_tracker/src/models/permission_status.dart';
+import 'package:location_tracker/src/models/security_alert.dart';
 import 'package:location_tracker/src/models/tracking_config.dart';
 import 'package:location_tracker/src/models/tracking_status.dart';
 
@@ -28,6 +30,10 @@ class LocationTracker {
   /// Emits real-time movement and tracking state transitions (STATIONARY, MOVING, PAUSED).
   static Stream<TrackingStatus> get onStatusChanged =>
       _platform.onStatusChanged;
+
+  /// Emits security alerts when tamper or fake GPS mock locations are detected.
+  static Stream<SecurityAlert> get onSecurityAlert =>
+      _platform.onSecurityAlert;
 
   static Future<String?> get platformVersion async {
     return _platform.getPlatformVersion();

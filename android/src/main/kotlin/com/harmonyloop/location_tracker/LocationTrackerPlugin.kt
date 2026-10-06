@@ -158,6 +158,26 @@ class LocationTrackerPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, P
         if (call.arguments is Map<*, *>) {
           @Suppress("UNCHECKED_CAST")
           val configMap = call.arguments as Map<String, Any?>
+          val current = ConfigStorage.loadConfig(context)
+          val parsedConfig = current.copy(
+            notificationTitle = configMap["notificationTitle"] as? String ?: current.notificationTitle,
+            notificationBodyTemplate = configMap["notificationBodyTemplate"] as? String ?: current.notificationBodyTemplate,
+            notificationIconResource = configMap["notificationIconResource"] as? String ?: current.notificationIconResource,
+            notificationChannelId = configMap["notificationChannelId"] as? String ?: current.notificationChannelId,
+            notificationChannelName = configMap["notificationChannelName"] as? String ?: current.notificationChannelName,
+            updateIntervalMs = (configMap["updateIntervalMs"] as? Number)?.toLong() ?: current.updateIntervalMs,
+            minDistanceFilterMeters = (configMap["minDistanceFilterMeters"] as? Number)?.toFloat() ?: current.minDistanceFilterMeters,
+            speedThresholdMps = (configMap["speedThresholdMps"] as? Number)?.toDouble() ?: current.speedThresholdMps,
+            accuracyFilterMeters = (configMap["accuracyFilterMeters"] as? Number)?.toFloat() ?: current.accuracyFilterMeters,
+            enableAutoStop = configMap["enableAutoStop"] as? Boolean ?: current.enableAutoStop,
+            autoStopHour = (configMap["autoStopHour"] as? Number)?.toInt() ?: current.autoStopHour,
+            autoStopMinute = (configMap["autoStopMinute"] as? Number)?.toInt() ?: current.autoStopMinute,
+            enableNotificationStopButton = configMap["enableNotificationStopButton"] as? Boolean ?: current.enableNotificationStopButton,
+            autoResumeOnBoot = configMap["autoResumeOnBoot"] as? Boolean ?: current.autoResumeOnBoot,
+            allowMockLocationsInDebug = configMap["allowMockLocationsInDebug"] as? Boolean ?: current.allowMockLocationsInDebug
+          )
+          ConfigStorage.saveConfig(context, parsedConfig)
+
           for ((k, v) in configMap) {
             when (v) {
               is String -> intent.putExtra(k, v)

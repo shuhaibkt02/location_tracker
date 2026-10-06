@@ -17,7 +17,8 @@ data class TrackingConfigData(
     val autoStopHour: Int = 0,
     val autoStopMinute: Int = 0,
     val enableNotificationStopButton: Boolean = false,
-    val autoResumeOnBoot: Boolean = true
+    val autoResumeOnBoot: Boolean = true,
+    val allowMockLocationsInDebug: Boolean = false
 )
 
 object ConfigStorage {
@@ -37,6 +38,7 @@ object ConfigStorage {
     private const val KEY_AUTO_STOP_MINUTE = "auto_stop_minute"
     private const val KEY_STOP_BUTTON = "enable_stop_button"
     private const val KEY_RESUME_BOOT = "auto_resume_boot"
+    private const val KEY_ALLOW_MOCK_DEBUG = "allow_mock_debug"
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -58,6 +60,7 @@ object ConfigStorage {
             putInt(KEY_AUTO_STOP_MINUTE, config.autoStopMinute)
             putBoolean(KEY_STOP_BUTTON, config.enableNotificationStopButton)
             putBoolean(KEY_RESUME_BOOT, config.autoResumeOnBoot)
+            putBoolean(KEY_ALLOW_MOCK_DEBUG, config.allowMockLocationsInDebug)
             apply()
         }
     }
@@ -78,7 +81,8 @@ object ConfigStorage {
             autoStopHour = prefs.getInt(KEY_AUTO_STOP_HOUR, 0),
             autoStopMinute = prefs.getInt(KEY_AUTO_STOP_MINUTE, 0),
             enableNotificationStopButton = prefs.getBoolean(KEY_STOP_BUTTON, false),
-            autoResumeOnBoot = prefs.getBoolean(KEY_RESUME_BOOT, true)
+            autoResumeOnBoot = prefs.getBoolean(KEY_RESUME_BOOT, true),
+            allowMockLocationsInDebug = prefs.getBoolean(KEY_ALLOW_MOCK_DEBUG, false)
         )
     }
 
